@@ -16,14 +16,16 @@ def eval(data, method_obj, eval_method):
     decomposed = decomp(data, method_obj)
     return eval_method.eval(data, decomposed)
 
-def sl_method(X_train, y_train, sl_method_obj):
+def sl_method(X_train, X_test, y_train, y_test, eval_func, *args):
     # method_obj: UoILasso, UoIRandomForest, iRF 
-    return sl_method_obj.fit(X_train, y_train)
-
-
-    # prediction = sl_method_obj.predict(X_test)
-    # accuracy = score_func(y_test, prediction)
-    # return accuracy
+    scores = {}
+    for sl_method_obj in args:
+        sl_method_obj.fit(X_train, y_train)
+        prediction = sl_method_obj.predict(X_test)
+        accuracy = eval_func(y_test, prediction)
+        scores[sl_method_obj] = accuracy
+    best_method = max(scores.items(), key = lambda x: x[1])[0]
+    return best_method
 
 def best_decomp_method(data, *args):
     scores = {}
@@ -43,13 +45,10 @@ def build_predictive_model(biomarkers, outcomes, bio_method, out_method, sl_meth
 
 if __name__ == '__main__':
 
-    # biomarker_dec: NMF, ICA, DL (ditionary learning)
+    # biomarker_dec: NMF, ICA, DL (dictionary learning)
     # outcome_dec: PCA, FA (factor analysis), MDS (multidim scaling), UMAP
     
-    # range(1,11)
-    pca = PCA(n_components = 2)
-    fa = FactorAnalysis()
-    mds = MDS(n_components = 2)
+    mds = MDS()
     lr = LogisticRegression()
         
     # biomarkers = [0,1,2,3,4,5]
@@ -73,9 +72,11 @@ if __name__ == '__main__':
     feature_name_subset_biomarker = f['feature_name_subset_biomarker']
     feature_name_subset_outcome = f['feature_name_subset_outcome']
     patient_id = f['patient_id']
-
-    method = best_decomp_method(data_matrix_subset_biomarker, pca, fa)
-    print(method)
+    for n in range(1,11):
+        pca = PCA(n_components = n)
+        fa = FactorAnalysis(n_components = n)
+        method = best_decomp_method(data_matrix_subset_biomarker, pca, fa)
+        print(method)
 
   
     
