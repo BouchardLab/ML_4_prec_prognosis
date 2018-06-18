@@ -16,13 +16,13 @@ def eval(data, method_obj, eval_method):
     decomposed = decomp(data, method_obj)
     return eval_method.eval(data, decomposed)
 
-def sl_method(X_train, X_test, y_train, y_test, eval_func, *args):
+def sl_method(X_train, X_test, y_train, y_test, *args):
     # method_obj: UoILasso, UoIRandomForest, iRF 
     scores = {}
     for sl_method_obj in args:
         sl_method_obj.fit(X_train, y_train)
         prediction = sl_method_obj.predict(X_test)
-        accuracy = eval_func(y_test, prediction)
+        accuracy = method.score(y_test, prediction)
         scores[sl_method_obj] = accuracy
     best_method = max(scores.items(), key = lambda x: x[1])[0]
     return best_method
