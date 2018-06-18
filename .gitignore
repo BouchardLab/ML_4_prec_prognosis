@@ -1,2 +1,7 @@
 # os related stuff
 .DS_Store
+
+# build files
+*.egg-info/
+__pycache__
+build/
