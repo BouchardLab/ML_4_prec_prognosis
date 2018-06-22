@@ -1,5 +1,3 @@
-import h5py
-
 
 class ReadFile(object):
 
