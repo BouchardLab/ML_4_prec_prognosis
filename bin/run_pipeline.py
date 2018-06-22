@@ -7,8 +7,7 @@ from sklearn import datasets
 from sklearn.linear_model import LogisticRegression
 import h5py
 from activ.pipeline import best_decomp_method
-import argparse
-from activ.readfile import ReadFile_obj
+from activ.readfile import get_parser
 
 # biomarker_dec: NMF, ICA, DL (dictionary learning)
 # outcome_dec: PCA, FA (factor analysis), MDS (multidim scaling), UMAP
@@ -16,9 +15,7 @@ from activ.readfile import ReadFile_obj
 mds = MDS()
 lr = LogisticRegression()
 
-
-parser = argparse.ArgumentParser()
-parser.add_argument('filepath', type = ReadFile_obj)
+parser = get_parser()
 args = parser.parse_args()
 
 data = args.filepath
