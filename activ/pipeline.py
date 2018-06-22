@@ -1,6 +1,6 @@
 from sklearn.decomposition import PCA, FactorAnalysis, NMF, FastICA, DictionaryLearning
 from sklearn.manifold import MDS
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestClassifier as RFC
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from sklearn import datasets
@@ -50,13 +50,43 @@ def build_predictive_model(biomarkers, outcomes, bio_method, out_method, sl_meth
     return score
 
 
-def cluster(cluster_method, nclust_range, X, method='single', metric='euclidean'):
+def cluster_range(X, n_clusters, method='single', metric='euclidean'):
+    """
+    Cluster data across a range of number of clusers using hierarchical
+    clustering.
+
+    Args:
+        X (ndarray):             an n by p array of observations
+        n_clusters (array_like): the number of clusters
+        method (str):            the linkage method. See scipy.cluster.hierarchy.linkage
+                                 for available methods
+        metric (str):            the distance metric. See scipy.distance.pdist
+                                 for available metrics
+
+    Return:
+        an n x len(n_clusters) array. cluster assignments for each observation
+        across for each element in n_clusters
+    """
     dist = pdist(X, metric=metric)
     linkmat = linkage(dist, method=method)
-    return cut_tree(linkmat, nclust_range)
+    return cut_tree(linkmat, n_clusters)
 
 
-def score_clusters(biomarkers, cluster_ids, classifier, train_frac):
+def score_clusters(X, cluster_ids, classifier=RFC(100), train_frac=0.8):
+    """
+    Score each clustering using the given classifier.
+
+    Args:
+        X (ndarray):                         an n by p array of observations
+        cluster_ids (array_like):            the cluster assignments as returned by cluster_range
+        classifier (sklearn classifier):     the classification method to use.
+                                             default is RandomForestClassifier(n_estimators=100)
+        train_frac (float):                  the fraction of the data to use for training
+                                             default is 0.8
+
+    Return:
+        the predictive accuracy for each value of n_clusters as given to cluster_range
+    """
     bm_train, bm_test, ids_train, ids_test = train_test_split(biomarkers, cluster_ids, train_size=train_frac)
     nclust_range = len(cluster_ids[0])
     ret = np.zeros(nclust_range, dtype=np.float)
