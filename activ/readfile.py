@@ -10,3 +10,7 @@ class ReadFile(object):
             self.feature_bm = f['feature_name_subset_biomarker'][:]
             self.feature_oc = f['feature_name_subset_outcome'][:]
             self.id = f['patient_id'][:]
+
+def ReadFile_obj(filename):
+    readfile_obj = ReadFile(filename)
+    return readfile_obj
