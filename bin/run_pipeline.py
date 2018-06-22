@@ -6,7 +6,7 @@ from sklearn.metrics import accuracy_score
 from sklearn import datasets
 from sklearn.linear_model import LogisticRegression
 import h5py
-from activ.pipeline import best_decomp_method
+from activ.pipeline import best_decomp_method, cluster_range, score_clusters
 from activ.readfile import get_parser
 
 # biomarker_dec: NMF, ICA, DL (dictionary learning)
@@ -19,7 +19,17 @@ parser = get_parser()
 args = parser.parse_args()
 
 data = args.filepath
-print(data.data_bm.shape)
+data.data_oc
+data.feature_oc
+data.data_bm
+data.feature_bm
+print(data.feature_oc.shape)
+
+ranges = range(2,20)
+
+cluster_output = cluster_range(data.data_oc, ranges)
+score_clusters(data.data_bm, cluster_output)
+print(score_clusters)
 
 
 
