@@ -8,7 +8,7 @@ from sklearn.linear_model import LogisticRegression
 import h5py
 from activ.pipeline import best_decomp_method, cluster_range, score_clusters
 from activ.readfile import get_parser
-
+import numpy as np
 # biomarker_dec: NMF, ICA, DL (dictionary learning)
 # outcome_dec: PCA, FA (factor analysis), MDS (multidim scaling), UMAP
 
@@ -23,12 +23,17 @@ data.data_oc
 data.feature_oc
 data.data_bm
 data.feature_bm
-print(data.feature_oc.shape)
+print("data_oc",data.data_oc.shape)
+print("feature_oc", data.feature_oc.shape)
+print("data_bm", data.data_bm.shape)
+print("feature_bm", data.feature_bm.shape)
 
 ranges = range(2,20)
 
 cluster_output = cluster_range(data.data_oc, ranges)
-score_clusters(data.data_bm, cluster_output)
+# cluter_output.shape = (177,18)
+print(cluster_output.shape)
+score_clusters(data.feature_oc, cluster_output)
 print(score_clusters)
 
 

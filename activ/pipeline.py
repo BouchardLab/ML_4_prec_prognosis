@@ -87,7 +87,7 @@ def score_clusters(X, cluster_ids, classifier=RFC(100), train_frac=0.8):
     Return:
         the predictive accuracy for each value of n_clusters as given to cluster_range
     """
-    bm_train, bm_test, ids_train, ids_test = train_test_split(biomarkers, cluster_ids, train_size=train_frac)
+    bm_train, bm_test, ids_train, ids_test = train_test_split(X, cluster_ids, train_size=train_frac)
     nclust_range = len(cluster_ids[0])
     ret = np.zeros(nclust_range, dtype=np.float)
     for i in range(nclust_range):
