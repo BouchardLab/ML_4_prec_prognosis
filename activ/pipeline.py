@@ -6,7 +6,7 @@ from sklearn.metrics import accuracy_score
 from sklearn import datasets
 from sklearn.linear_model import LogisticRegression
 import h5py
-
+import numpy as np
 from scipy.cluster.hierarchy import linkage, cut_tree
 from scipy.spatial.distance import pdist
 
@@ -89,6 +89,7 @@ def score_clusters(X, cluster_ids, classifier=RFC(100), train_frac=0.8):
     """
     bm_train, bm_test, ids_train, ids_test = train_test_split(X, cluster_ids, train_size=train_frac)
     nclust_range = len(cluster_ids[0])
+    print(nclust_range)
     ret = np.zeros(nclust_range, dtype=np.float)
     for i in range(nclust_range):
         classifier.fit(bm_train, ids_train[:,i])
