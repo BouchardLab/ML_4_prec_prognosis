@@ -10,6 +10,8 @@ import numpy as np
 from scipy.cluster.hierarchy import linkage, cut_tree
 from scipy.spatial.distance import pdist
 
+import numpy as np
+
 
 def decomp(data, method_obj):
     return method_obj.fit_transform(data)
@@ -95,4 +97,28 @@ def score_clusters(X, cluster_ids, classifier=RFC(100), train_frac=0.8):
         classifier.fit(bm_train, ids_train[:,i])
         pred = classifier.predict(bm_test)
         ret[i] = accuracy_score(ids_test[:,i], pred)
+    return ret
+
+
+def score_clusters_cv(X, cluster_ids, classifier=RFC(100), cv=None):
+    """
+    Score each clustering using the given classifier.
+
+    Args:
+        X (ndarray):                         an n by p array of observations
+        cluster_ids (array_like):            the cluster assignments as returned by cluster_range
+        classifier (sklearn classifier):     the classification method to use.
+                                             Default is RandomForestClassifier(n_estimators=100)
+        cv (int):                            the number of folds to use. Default is 3.
+                                             See sklearn.model_selection.cross_val_score for more
+                                             details
+
+    Return:
+        the predictive accuracy (averaged across k folds of CV) for each value of n_clusters as
+        given to cluster_range
+    """
+    nclust_range = len(cluster_ids[0])
+    ret = np.zeros(nclust_range, dtype=np.float)
+    for i in range(nclust_range):
+        ret[i] = np.mean(cross_val_score(classifier, X, y=cluster_ids[:,i]))
     return ret
