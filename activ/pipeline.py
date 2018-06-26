@@ -113,8 +113,6 @@ def score_clusters_cv(X, cluster_ids, classifier=RFC(100), cv=None):
                                              See sklearn.model_selection.cross_val_score for more
                                              details
 
-    I WILL EVENTUALLY DELETE THIS LINE
-
     Return:
         the predictive accuracy (averaged across k folds of CV) for each value of n_clusters as
         given to cluster_range
