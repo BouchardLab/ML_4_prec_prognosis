@@ -4,7 +4,6 @@ from argparse import ArgumentTypeError, ArgumentParser
 class TrackTBIFile(object):
 
     def __init__(self, filename):
-        print("Calling ReadFile constructor")
         self.filename = filename
         with h5py.File(self.filename, 'r') as f:
             self.data_bm = f['data_matrix_subset_biomarker'][:]
