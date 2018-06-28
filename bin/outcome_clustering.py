@@ -6,10 +6,11 @@ from sklearn.metrics import accuracy_score
 from sklearn import datasets
 from sklearn.linear_model import LogisticRegression
 import h5py
-from activ.pipeline import best_decomp_method, cluster_range, score_clusters, score_clusters_cv
+from activ.pipeline import filter_outliers, pca, best_decomp_method, cluster_range, score_clusters, score_clusters_cv
 from activ.readfile import get_parser
 import numpy as np
-
+from scipy.cluster import hierarchy
+import matplotlib.pyplot as plt
 
 # biomarker_dec: NMF, ICA, DL (dictionary learning)
 # outcome_dec: PCA, FA (factor analysis), MDS (multidim scaling), UMAP
@@ -31,22 +32,28 @@ data.feature_bm
 ranges = np.asarray(range(2,50))
 outcome_clustering_results = np.zeros((10, len(ranges)))
 
-#for i in range(10):
-#    cluster_output = cluster_range(np.transpose(data.data_oc), ranges)
-#    scores = score_clusters(np.transpose(data.data_bm), cluster_output)
-#    outcome_clustering_results[i,:] = scores
-#print(outcome_clustering_results)
-#print(outcome_clustering_results.shape)
+# without filtering outliers, pca
+#print(np.transpose(data.data_oc).shape)
+#cluster_output = cluster_range(np.transpose(data.data_oc), ranges, method='ward')
+#print(cluster_output.shape)
+#scores = score_clusters_cv(np.transpose(data.data_bm), cluster_output, cv=10)
+#np.savez('outcome_cv_results.npz', name1 = scores)
 
-cluster_output = cluster_range(np.transpose(data.data_oc), ranges, method='ward')
-print(cluster_output.shape)
-scores = score_clusters_cv(np.transpose(data.data_bm), cluster_output, cv=10)
-#print(scores, scores.shape)
-np.savez('outcome_cv_results.npz', name1 = scores)
-#np.savez('outcome_clustering_results.npz', name1 = outcome_clustering_results)
+# with filtering_outliers, pca
+#new_ranges = np.asarray(range(2,12))
+#data_oc_pca = pca(np.transpose(data.data_oc), 12)
+#data_bm_pca = pca(np.transpose(data.data_bm), 12)
+#data_oc_pca_filter, discard_indices = filter_outliers(data_oc_pca, 10)
+#data_bm_pca_filter, discard_indices = filter_outliers(data_bm_pca, 10)
+#print(data_oc_pca_filter.shape)
+#cluster_output = cluster_range(data_oc_pca_filter, new_ranges, method='ward')
+#print(cluster_output.shape)
+#filtered_scores = score_clusters_cv(data_bm_pca_filter, cluster_output, cv=10)
+#np.savez('outcome_cv_filtered_results.npz', name1 = filtered_scores)
 
-# for n in range(1,11):
-#     pca = PCA(n_components = n)
-#     fa = FactorAnalysis(n_components = n)
-#     method = best_decomp_method(data_matrix_subset_biomarker, pca, fa)
-#     print(method)
+
+plt.figure()
+tree = hierarchy.linkage(data_oc_pca_filter, 'single')
+hierarchy.dendrogram(tree)
+plt.show()
+
