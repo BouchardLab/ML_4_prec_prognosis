@@ -166,3 +166,21 @@ def pca(X, num_latent, norm='z-score'):
     normed = data_normalization(X, norm)
     ret = PCA(n_components=num_latent).fit_transform(normed)
     return ret
+
+def umap(X, n_neighbors=10, min_dist=0.1, metric='euclidean'):
+    """
+    Run UMAP (after normalizing) and return the transformed data
+
+    Args:
+        n_neighbors (int):      Somewhere in the range of 5 to 50. default is 10
+                                See UMAP docs for more details.
+        min_dist (float):       Somewhere in the range of 0.001 to 0.5. default is 0.1
+                                See UMAP docs for more details.
+        metric (str):           The distance metric to use. default is euclidean
+                                See UMAP docs for all available metrics
+    """
+    normed = data_normalization(X, norm)
+    ret = UMAP(n_neighbors=n_neighbors,
+               min_dist=min_dist,
+               metric=metric).fit_transform(X)
+    return ret
