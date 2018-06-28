@@ -1,16 +1,18 @@
-import h5py
 from argparse import ArgumentTypeError, ArgumentParser
+
 
 class TrackTBIFile(object):
 
     def __init__(self, filename):
+        from h5py import File
         self.filename = filename
-        with h5py.File(self.filename, 'r') as f:
+        with File(self.filename, 'r') as f:
             self.data_bm = f['data_matrix_subset_biomarker'][:]
             self.data_oc = f['data_matrix_subset_outcome'][:]
             self.feature_bm = f['feature_name_subset_biomarker'][:]
             self.feature_oc = f['feature_name_subset_outcome'][:]
             self.id = f['patient_id'][:]
+
 
 def read_file(filename):
     try:
@@ -37,3 +39,9 @@ def get_parser(usage="%(prog)s [options] filepath",
     parser = ArgumentParser(usage=usage, description=desc, epilog=epi)
     parser.add_argument('filepath', type=read_file)
     return parser
+
+
+def load_data():
+    from pkg_resources import resource_filename
+    path = resource_filename(__name__, 'data.h5')
+    return TrackTBIFile(path)
