@@ -11,6 +11,9 @@ from scipy.cluster.hierarchy import linkage, cut_tree
 from scipy.spatial.distance import pdist
 
 import numpy as np
+import numpy.matlib as npm
+
+from .data_normalization import data_normalization
 
 
 def decomp(data, method_obj):
@@ -91,7 +94,6 @@ def score_clusters(X, cluster_ids, classifier=RFC(100), train_frac=0.8):
     """
     bm_train, bm_test, ids_train, ids_test = train_test_split(X, cluster_ids, train_size=train_frac)
     nclust_range = len(cluster_ids[0])
-    print(nclust_range)
     ret = np.zeros(nclust_range, dtype=np.float)
     for i in range(nclust_range):
         classifier.fit(bm_train, ids_train[:,i])
@@ -122,4 +124,45 @@ def score_clusters_cv(X, cluster_ids, classifier=RFC(100), cv=None):
     print(ret.shape)
     for i in range(nclust_range):
         ret[i] = np.mean(cross_val_score(classifier, X, y=cluster_ids[:,i]))
+    return ret
+
+def filter_outliers(X, num_outliers):
+    """
+    Remove outliers from a data matrix
+
+    Args:
+        X (ndarray):         an n by p array of observations
+        num_outliers (int):  the number of outliers to discard
+
+    Return:
+        a tuple of the resulting filtered data, and the indices of the
+        discarded data points
+
+    """
+    n = X.shape[0]
+    mask = np.ones(n)
+    means = np.mean(X, axis=0)
+    discard = np.sort(np.argsort(np.sum((X - npm.repmat(means, n, 1))**2, axis=1))[n-num_outliers:])
+    mask[discard] = 0
+    filtered = X[mask==1]
+    return filtered, discard
+
+def pca(X, num_latent, norm='z-score'):
+    """
+    Run PCA (after normalizing) and return the first num_latent
+    components
+
+    Args:
+        X (ndarray):       an n by p array of observations
+        num_latent (int):  the number of principal components to keep
+        norm (str):        the data normalization strategy. See data_normalization
+                           for more details.
+
+
+    Return:
+        The transformed data
+
+    """
+    normed = data_normalization(X, norm)
+    ret = PCA(n_components=num_latent).fit_transform(normed)
     return ret
