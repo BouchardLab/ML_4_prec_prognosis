@@ -1,7 +1,7 @@
 from sklearn.decomposition import PCA, FactorAnalysis, NMF, FastICA, DictionaryLearning
 from sklearn.manifold import MDS
 from sklearn.ensemble import RandomForestClassifier as RFC
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import accuracy_score
 from sklearn import datasets
 from sklearn.linear_model import LogisticRegression
@@ -119,6 +119,7 @@ def score_clusters_cv(X, cluster_ids, classifier=RFC(100), cv=None):
     """
     nclust_range = len(cluster_ids[0])
     ret = np.zeros(nclust_range, dtype=np.float)
+    print(ret.shape)
     for i in range(nclust_range):
         ret[i] = np.mean(cross_val_score(classifier, X, y=cluster_ids[:,i]))
     return ret

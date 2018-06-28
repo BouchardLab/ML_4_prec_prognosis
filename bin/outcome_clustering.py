@@ -6,7 +6,7 @@ from sklearn.metrics import accuracy_score
 from sklearn import datasets
 from sklearn.linear_model import LogisticRegression
 import h5py
-from activ.pipeline import best_decomp_method, cluster_range, score_clusters
+from activ.pipeline import best_decomp_method, cluster_range, score_clusters, score_clusters_cv
 from activ.readfile import get_parser
 import numpy as np
 
@@ -28,17 +28,22 @@ data.feature_bm
 #print("data_bm", data.data_bm.shape)
 #print("feature_bm", data.feature_bm.shape)
 
-ranges = np.asarray(range(2,200))
+ranges = np.asarray(range(2,50))
 outcome_clustering_results = np.zeros((10, len(ranges)))
 
-for i in range(10):
-    cluster_output = cluster_range(np.transpose(data.data_oc), ranges)
-    scores = score_clusters(np.transpose(data.data_bm), cluster_output)
-    outcome_clustering_results[i,:] = scores
-print(outcome_clustering_results)
-print(outcome_clustering_results.shape)
+#for i in range(10):
+#    cluster_output = cluster_range(np.transpose(data.data_oc), ranges)
+#    scores = score_clusters(np.transpose(data.data_bm), cluster_output)
+#    outcome_clustering_results[i,:] = scores
+#print(outcome_clustering_results)
+#print(outcome_clustering_results.shape)
 
-np.savez('outcome_clustering_results.npz', name1 = outcome_clustering_results)
+cluster_output = cluster_range(np.transpose(data.data_oc), ranges, method='ward')
+print(cluster_output.shape)
+scores = score_clusters_cv(np.transpose(data.data_bm), cluster_output, cv=10)
+#print(scores, scores.shape)
+np.savez('outcome_cv_results.npz', name1 = scores)
+#np.savez('outcome_clustering_results.npz', name1 = outcome_clustering_results)
 
 # for n in range(1,11):
 #     pca = PCA(n_components = n)
