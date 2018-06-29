@@ -102,7 +102,7 @@ def score_clusters(X, cluster_ids, classifier=RFC(100), train_frac=0.8):
     return ret
 
 
-def score_clusters_cv(X, cluster_ids, classifier=RFC(100), cv=None):
+def score_clusters_cv(X, cluster_ids, classifier=RFC(100), cv=10):
     """
     Score each clustering using the given classifier.
 
@@ -120,11 +120,12 @@ def score_clusters_cv(X, cluster_ids, classifier=RFC(100), cv=None):
         given to cluster_range
     """
     nclust_range = len(cluster_ids[0])
-    ret = np.zeros(nclust_range, dtype=np.float)
+    ret = np.zeros((nclust_range, cv), dtype=np.float)
     print(ret.shape)
     for i in range(nclust_range):
-        ret[i] = np.mean(cross_val_score(classifier, X, y=cluster_ids[:,i]))
+        ret[i,:] = cross_val_score(classifier, X, y=cluster_ids[:,i], cv=cv)
     return ret
+
 
 def filter_outliers(X, num_outliers):
     """

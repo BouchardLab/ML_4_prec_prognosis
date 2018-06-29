@@ -10,7 +10,6 @@ from activ.pipeline import filter_outliers, pca, best_decomp_method, cluster_ran
 from activ.readfile import get_parser
 import numpy as np
 from scipy.cluster import hierarchy
-import matplotlib.pyplot as plt
 
 # biomarker_dec: NMF, ICA, DL (dictionary learning)
 # outcome_dec: PCA, FA (factor analysis), MDS (multidim scaling), UMAP
@@ -29,7 +28,7 @@ data.feature_bm
 #print("data_bm", data.data_bm.shape)
 #print("feature_bm", data.feature_bm.shape)
 
-ranges = np.asarray(range(2,50))
+ranges = np.asarray(range(2,12))
 outcome_clustering_results = np.zeros((10, len(ranges)))
 
 # without filtering outliers, pca
@@ -40,20 +39,20 @@ outcome_clustering_results = np.zeros((10, len(ranges)))
 #np.savez('outcome_cv_results.npz', name1 = scores)
 
 # with filtering_outliers, pca
-#new_ranges = np.asarray(range(2,12))
-#data_oc_pca = pca(np.transpose(data.data_oc), 12)
-#data_bm_pca = pca(np.transpose(data.data_bm), 12)
-#data_oc_pca_filter, discard_indices = filter_outliers(data_oc_pca, 10)
-#data_bm_pca_filter, discard_indices = filter_outliers(data_bm_pca, 10)
+new_ranges = np.asarray(range(2,12))
+data_oc_pca = pca(np.transpose(data.data_oc), 12)
+data_bm_pca = pca(np.transpose(data.data_bm), 12)
+data_oc_pca_filter, discard_indices = filter_outliers(data_oc_pca, 10)
+data_bm_pca_filter, discard_indices = filter_outliers(data_bm_pca, 10)
 #print(data_oc_pca_filter.shape)
-#cluster_output = cluster_range(data_oc_pca_filter, new_ranges, method='ward')
+cluster_output = cluster_range(data_oc_pca_filter, new_ranges, method='ward')
 #print(cluster_output.shape)
-#filtered_scores = score_clusters_cv(data_bm_pca_filter, cluster_output, cv=10)
-#np.savez('outcome_cv_filtered_results.npz', name1 = filtered_scores)
+filtered_scores = score_clusters_cv(data_bm_pca_filter, cluster_output, cv=10)
+np.savez('outcome_cv_filtered_results.npz', name1 = filtered_scores)
 
 
-plt.figure()
-tree = hierarchy.linkage(data_oc_pca_filter, 'single')
-hierarchy.dendrogram(tree)
-plt.show()
+#plt.figure()
+#tree = hierarchy.linkage(data_oc_pca_filter, 'single')
+#hierarchy.dendrogram(tree)
+#plt.show()
 
