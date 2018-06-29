@@ -9,7 +9,7 @@ import h5py
 import numpy as np
 from scipy.cluster.hierarchy import linkage, cut_tree
 from scipy.spatial.distance import pdist
-
+from umap import UMAP
 import numpy as np
 import numpy.matlib as npm
 
@@ -168,7 +168,7 @@ def pca(X, num_latent, norm='z-score'):
     ret = PCA(n_components=num_latent).fit_transform(normed)
     return ret
 
-def umap(X, n_neighbors=10, min_dist=0.1, metric='euclidean'):
+def run_umap(X, n_neighbors=10, min_dist=0.1, metric='euclidean', norm='z-score'):
     """
     Run UMAP (after normalizing) and return the transformed data
 

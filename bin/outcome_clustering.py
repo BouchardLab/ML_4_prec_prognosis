@@ -46,10 +46,11 @@ data_oc_pca_filter, discard_indices = filter_outliers(data_oc_pca, 10)
 data_bm_pca_filter, discard_indices = filter_outliers(data_bm_pca, 10)
 #print(data_oc_pca_filter.shape)
 cluster_output = cluster_range(data_oc_pca_filter, new_ranges, method='ward')
-#print(cluster_output.shape)
+print("cluster_output",cluster_output.shape)
+print(cluster_output)
 filtered_scores = score_clusters_cv(data_bm_pca_filter, cluster_output, cv=10)
 np.savez('outcome_cv_filtered_results.npz', name1 = filtered_scores)
-
+np.savez('cluster_output.npz', name1=cluster_output)
 
 #plt.figure()
 #tree = hierarchy.linkage(data_oc_pca_filter, 'single')
