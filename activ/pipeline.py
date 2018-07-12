@@ -168,7 +168,7 @@ def pca(X, num_latent, norm='z-score'):
     ret = PCA(n_components=num_latent).fit_transform(normed)
     return ret
 
-def run_umap(X, n_neighbors=10, min_dist=0.1, metric='euclidean', norm='z-score'):
+def run_umap(X,n_components, n_neighbors=10, min_dist=0.1, metric='euclidean', norm='z-score'):
     """
     Run UMAP (after normalizing) and return the transformed data
 
@@ -181,7 +181,8 @@ def run_umap(X, n_neighbors=10, min_dist=0.1, metric='euclidean', norm='z-score'
                                 See UMAP docs for all available metrics
     """
     normed = data_normalization(X, norm)
-    ret = UMAP(n_neighbors=n_neighbors,
+    ret = UMAP(n_components=n_components,
+               n_neighbors=n_neighbors,
                min_dist=min_dist,
                metric=metric).fit_transform(X)
     return ret
