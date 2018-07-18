@@ -5,8 +5,13 @@ def data_normalization(M, method):
     if method == 'z-score':
         ret = (M-np.mean(M))/np.std(M)
     elif method == 'positive':
-        norm_M = M-min(M)
-        ret = norm_M/max(norm_M)
+        ret = np.copy(M)
+        mn = np.amin(ret, axis=0)
+        for i in range(ret.shape[0]):
+            ret[i] -= mn
+        mx = np.amax(ret, axis=0)
+        for i in range(ret.shape[0]):
+            ret[i] /= mx
     else:
         raise ValueError("method must be 'z-score' or 'positive'")
         # print('...................................\n')
