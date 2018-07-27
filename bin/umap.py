@@ -1,17 +1,8 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.cluster import hierarchy
-import matplotlib.pyplot as plt
-from activ.readfile import load_data
-from activ.pipeline import score_clusters_cv, cluster_range, filter_outliers, run_umap
-from activ.data_normalization import data_normalization
+from activ.pipeline import filter_outliers, run_umap
 import h5py
-from bokeh.plotting import figure, output_file, show
-from bokeh.models import CategoricalColorMapper, ColumnDataSource
-from bokeh.palettes import Category10, Category20
-from bokeh.io import output_notebook
 from umap import UMAP
-from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.ensemble import RandomForestClassifier as RFC
 from sklearn.model_selection import train_test_split, cross_val_score
 
