@@ -1,5 +1,6 @@
 from argparse import ArgumentTypeError, ArgumentParser
 import h5py as _h5py
+import numpy as _np
 from warnings import warn
 from pkg_resources import resource_filename
 
@@ -13,16 +14,22 @@ class TrackTBIFile(object):
     __oc = 'outcomes'
     __bm_feat = 'biomarker_features'
     __oc_feat = 'outcome_features'
-    __pid = 'patient_id'
+    __pid = 'patient_ids'
 
     def __init__(self, filename):
         self.filename = filename
         with _h5py.File(self.filename, 'r') as f:
             self.biomarkers = f[self.__bm][:]
             self.outcomes = f[self.__oc][:]
-            self.biomarker_features = f[self.__bm_feat][:]
-            self.outcomes_features = f[self.__oc_feat][:]
-            self.id = f[self.__pid][:]
+            self.biomarker_features = self.__decode(f[self.__bm_feat])
+            self.outcome_features = self.__decode(f[self.__oc_feat])
+            self.patient_ids = self.__decode(f[self.__pid])
+
+    def __decode(self, dset):
+        if _h5py.check_dtype(vlen=dset.dtype) == bytes:
+            return _np.array([s.decode('utf-8') for s in dset])
+        else:
+            return dset[:]
 
     @classmethod
     def __write_ascii(cls, grp, name, it):
@@ -32,7 +39,7 @@ class TrackTBIFile(object):
 
     @classmethod
     def __add_dimscale(cls, dset, dim, scale, ann):
-        if dims.attrs.get('CLASS', None) != 'DIMENSION_SCALE':
+        if scale.attrs.get('CLASS', None) != 'DIMENSION_SCALE':
             dset.dims.create_scale(scale, ann)
         dset.dims[dim].attach_scale(scale)
 
@@ -64,23 +71,24 @@ class TrackTBIFile(object):
 
         # write biomarker feature names
         if biomarker_features is not None:
-            if biomarker_features.shape[0] != biomarkers.shape[1]:
+            if len(biomarker_features) != biomarkers.shape[1]:
                 warn('biomarker_features length does not match biomarkers second dimension')
             scale = cls.__write_ascii(h5group, cls.__bm_feat, biomarker_features)
             cls.__add_dimscale(bm_dset, 1, scale, 'Biomarker feature names')
 
         # write outcome feature names
         if outcome_features is not None:
-            if outcome_features.shape[0] != outcomes.shape[1]:
+            if len(outcome_features) != outcomes.shape[1]:
                 warn('outcome_features length does not match outcomes second dimension')
             scale = cls.__write_ascii(h5group, cls.__oc_feat, outcome_features)
             cls.__add_dimscale(oc_dset, 1, scale, 'Outcome feature names')
 
         # write patient IDs
         if patient_ids is not None:
-            if patient_ids.shape[0] != outcomes.shape[1]:
+            if len(patient_ids) != outcomes.shape[0]:
+                print(len(patient_ids), outcomes.shape[1])
                 warn('patient_ids length does not match outcomes first dimension')
-            if patient_ids.shape[0] != biomarkers.shape[1]:
+            if len(patient_ids) != biomarkers.shape[0]:
                 warn('patient_ids length does not match biomarkers first dimension')
             scale = cls.__write_ascii(h5group, cls.__pid, patient_ids)
             cls.__add_dimscale(oc_dset, 0, scale, 'Patient IDs')
