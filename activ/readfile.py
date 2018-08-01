@@ -1,6 +1,8 @@
 from argparse import ArgumentTypeError, ArgumentParser
+import h5py as _h5py
 from warnings import warn
 from pkg_resources import resource_filename
+
 
 
 class TrackTBIFile(object):
@@ -14,14 +16,13 @@ class TrackTBIFile(object):
     __pid = 'patient_id'
 
     def __init__(self, filename):
-        from h5py import File
         self.filename = filename
-        with File(self.filename, 'r') as f:
-            self.biomarkers = f['biomarkers'][:]
-            self.outcomes = f['outcomes'][:]
-            self.biomarker_features = f['biomarker_features'][:]
-            self.outcomes_features = f['outcome_features'][:]
-            self.id = f['patient_id'][:]
+        with _h5py.File(self.filename, 'r') as f:
+            self.biomarkers = f[self.__bm][:]
+            self.outcomes = f[self.__oc][:]
+            self.biomarker_features = f[self.__bm_feat][:]
+            self.outcomes_features = f[self.__oc_feat][:]
+            self.id = f[self.__pid][:]
 
     @classmethod
     def __write_ascii(cls, grp, name, it):
@@ -56,7 +57,7 @@ class TrackTBIFile(object):
         h5group = dest
         close_grp = False
         if isinstance(dest, str):
-            h5group = h5py.File(dest, 'w')
+            h5group = _h5py.File(dest, 'w')
             close_grp = True
         bm_dset = h5group.create_dataset(cls.__bm, biomarkers)
         oc_dset = h5group.create_dataset(cls.__oc, outcomes)
