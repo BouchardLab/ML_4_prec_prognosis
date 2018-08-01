@@ -29,6 +29,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
     if not ax:
         ax = plt.gca()
 
+    kwargs.setdefault('cmap', 'binary')
     # Plot the heatmap
     im = ax.imshow(data, **kwargs)
 
