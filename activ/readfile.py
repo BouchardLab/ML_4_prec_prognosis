@@ -1,19 +1,92 @@
 from argparse import ArgumentTypeError, ArgumentParser
+from warnings import warn
 from pkg_resources import resource_filename
 
 
 class TrackTBIFile(object):
 
+    __strtype = _h5py.special_dtype(vlen=bytes)
+
+    __bm = 'biomarkers'
+    __oc = 'outcomes'
+    __bm_feat = 'biomarker_features'
+    __oc_feat = 'outcome_features'
+    __pid = 'patient_id'
+
     def __init__(self, filename):
         from h5py import File
         self.filename = filename
         with File(self.filename, 'r') as f:
-            self.data_bm = f['data_matrix_subset_biomarker'][:].T
-            self.data_oc = f['data_matrix_subset_outcome'][:].T
-            self.feature_bm = f['feature_name_subset_biomarker'][:]
-            self.feature_oc = f['feature_name_subset_outcome'][:]
+            self.biomarkers = f['biomarkers'][:]
+            self.outcomes = f['outcomes'][:]
+            self.biomarker_features = f['biomarker_features'][:]
+            self.outcomes_features = f['outcome_features'][:]
             self.id = f['patient_id'][:]
 
+    @classmethod
+    def __write_ascii(cls, grp, name, it):
+        b = [bytes(x, 'utf-8') for x in it]
+        ret = grp.create_dataset(name, data=b, dtype=cls.__strtype)
+        return ret
+
+    @classmethod
+    def __add_dimscale(cls, dset, dim, scale, ann):
+        if dims.attrs.get('CLASS', None) != 'DIMENSION_SCALE':
+            dset.dims.create_scale(scale, ann)
+        dset.dims[dim].attach_scale(scale)
+
+    @classmethod
+    def write(cls, dest, biomarkers, outcomes, biomarker_features=None, outcome_features=None, patient_ids=None):
+        """
+        Write biomarkers and outcomes to an HDF5 file
+
+        Args:
+            dest                : the path to an HDF5 file or the :class:`h5py.Group` to write to
+            biomarkers          : the biomarker data with dimensions (n_samples, n_features)
+            outcomes            : the outcomes data with dimensions (n_samples, n_features)
+            biomarker_features  : the names of the biomarker features (optional)
+            outcome_features    : the names of the outcome features (optional)
+            patient_ids         : the patient IDs (optional)
+
+        If biomarker_features, outcome_features, or patient_ids are provided, they will be
+        added as dimension scales to the appropriate dimension of their respective datasets.
+        """
+        if biomarkers.shape[0] != outcomes.shape[0]:
+            warn("biomarkers and outcomes do not have the same number of samples")
+        h5group = dest
+        close_grp = False
+        if isinstance(dest, str):
+            h5group = h5py.File(dest, 'w')
+            close_grp = True
+        bm_dset = h5group.create_dataset(cls.__bm, biomarkers)
+        oc_dset = h5group.create_dataset(cls.__oc, outcomes)
+
+        # write biomarker feature names
+        if biomarker_features is not None:
+            if biomarker_features.shape[0] != biomarkers.shape[1]:
+                warn('biomarker_features length does not match biomarkers second dimension')
+            scale = cls.__write_ascii(h5group, self.__bm_feat, biomarker_features)
+            cls.__add_dimscale(bm_dset, 1, scale, 'Biomarker feature names')
+
+        # write outcome feature names
+        if outcome_features is not None:
+            if outcome_features.shape[0] != outcomes.shape[1]:
+                warn('outcome_features length does not match outcomes second dimension')
+            scale = cls.__write_ascii(h5group, self.__oc_feat, outcome_features)
+            cls.__add_dimscale(oc_dset, 1, scale, 'Outcome feature names')
+
+        # write patient IDs
+        if patient_ids is not None:
+            if patient_ids.shape[0] != outcomes.shape[1]:
+                warn('patient_ids length does not match outcomes first dimension')
+            if patient_ids.shape[0] != biomarkers.shape[1]:
+                warn('patient_ids length does not match biomarkers first dimension')
+            scale = cls.__write_ascii(h5group, self.__pid, patient_ids)
+            cls.__add_dimscale(oc_dset, 0, scale, 'Patient IDs')
+            cls.__add_dimscale(bm_dset, 0, scale, 'Patient IDs')
+
+        if close_grp:
+            h5group.close()
 
 def read_file(filename):
     try:
