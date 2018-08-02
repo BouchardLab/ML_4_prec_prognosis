@@ -188,11 +188,25 @@ def get_parser(usage="%(prog)s [options] filepath",
     return parser
 
 
-def load_data():
-    path = resource_filename(__name__, 'data.h5')
+def load_data(suffix=None):
+    """
+    Load a TRACK-TBI dataset.
+
+    Use load_data('uoinmf') to laod UoI-NMF dataset
+
+    Args:
+        suffix      : the dataset suffix. will look for data_<suffix>.h5
+    """
+    filename = "data"
+    if suffix is not None:
+        filename = "%s_%s" % (filename, suffix)
+    filename += ".h5"
+    path = resource_filename(__name__, filename)
     return TrackTBIFile(path)
 
+
 # 586 samples with 474 features (258 biomarkers and 216 outcomes)
+
 
 def load_rowmask():
     """
