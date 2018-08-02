@@ -1,8 +1,11 @@
 import os.path as _op
 import h5py as _h5py
 import numpy as _np
-import matplotlib.pyplot as _plt
-from activ.analytics import heatmap
+import logging as _logging
+from time import time as _time
+
+from sklearn.ensemble import RandomForestClassifier as RFC
+from sklearn.model_selection import cross_val_score
 
 
 class UmapClusteringResults(object):
@@ -50,6 +53,8 @@ class UmapClusteringResults(object):
             op          : the summary operation. options are 'median'
                           or 'mean'. default is 'mean'
         """
+        import matplotlib.pyplot as _plt
+        from activ.analytics import heatmap
         dest = path
         if dest is None:
             dest = _op.join(self.outdir, 'heatmap_%s.png' % op)
@@ -106,7 +111,7 @@ def umap_cluster_sweep(iterations, cluster_data, umap_dims, cluster_sizes,
 
     """
     if logger is None:
-        logger = logging.getLogger('umap_cluster_sweep')
+        logger = _logging.getLogger('umap_cluster_sweep')
     if predict_data is None:
         logger.info('using cluster_data predict clusters, which will be inferred from cluster_data')
         predict_data = cluster_data
@@ -126,7 +131,7 @@ def umap_cluster_sweep(iterations, cluster_data, umap_dims, cluster_sizes,
     clusters_shape = (n_iters, len(umap_dims), len(cluster_sizes), n_samples)
 
     if seed is None:
-        seed = int(round(time() * 1000) % 2**32)
+        seed = int(round(_time() * 1000) % 2**32)
     _np.random.seed(seed)
 
     close_grp = False
