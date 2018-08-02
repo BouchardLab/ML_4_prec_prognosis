@@ -21,7 +21,7 @@ class TrackTBIFile(object):
         with _h5py.File(self.filename, 'r') as f:
             self.biomarkers = f[self.__bm][:]
             self.outcomes = f[self.__oc][:]
-            self.self.biomarker_features = None
+            self.biomarker_features = None
             self.outcome_features = None
             self.patient_ids = None
             if self.__bm_feat in f:
