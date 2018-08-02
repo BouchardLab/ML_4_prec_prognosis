@@ -103,6 +103,17 @@ class TrackTBIFile(object):
         if close_grp:
             h5group.close()
 
+class UoINMFTrackTBIFile(TrackTBIFile):
+
+    __bm_bases = 'bm_h1'
+    __oc_bases = 'oc_h1'
+
+    def __init__(self, filename):
+        super(UoINMFTrackTBIFile, self).__init__(filename)
+        with _h5py.File(self.filename, 'r') as f:
+            self.biomarker_bases = f[self.__bm_bases][:]
+            self.outcome_bases = f[self.__oc_bases][:]
+
 def read_file(filename):
     try:
         readfile_obj = TrackTBIFile(filename)
@@ -188,21 +199,21 @@ def get_parser(usage="%(prog)s [options] filepath",
     return parser
 
 
-def load_data(suffix=None):
+def load_data(uoinmf=False):
     """
     Load a TRACK-TBI dataset.
 
     Use load_data('uoinmf') to laod UoI-NMF dataset
 
     Args:
-        suffix      : the dataset suffix. will look for data_<suffix>.h5
+        uoinmf  : True to load the UoINMF decomposed data
     """
-    filename = "data"
-    if suffix is not None:
-        filename = "%s_%s" % (filename, suffix)
-    filename += ".h5"
-    path = resource_filename(__name__, filename)
-    return TrackTBIFile(path)
+    if uoinmf is not None:
+        path = resource_filename(__name__, 'data_uoinmf.h5')
+        return UoINMFTrackTBIFile(path)
+    else:
+        path = resource_filename(__name__, 'data_uoinmf.h5')
+        return TrackTBIFile(path)
 
 
 # 586 samples with 474 features (258 biomarkers and 216 outcomes)
