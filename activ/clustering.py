@@ -7,6 +7,7 @@ from time import time as _time
 from sklearn.ensemble import RandomForestClassifier as RFC
 from sklearn.model_selection import cross_val_score
 
+from activ.pipeline import run_umap, cluster_range
 
 class UmapClusteringResults(object):
 
@@ -120,6 +121,8 @@ def umap_cluster_sweep(iterations, cluster_data, umap_dims, cluster_sizes,
     logger.info('predicting clusters with %s' % str(classifier))
     logger.info('UMAP dimensions: %s' % str(umap_dims))
     logger.info('Cluster sizes: %s' % str(cluster_sizes))
+    if umap_args is None:
+        umap_args = dict()
 
     n_iters = iterations
     n_neighbors = umap_args.get('n_neighbors', 10)

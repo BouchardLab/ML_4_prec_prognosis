@@ -3,14 +3,17 @@ import logging
 import sys
 from datetime import datetime
 
-from activ.pipeline import run_umap, cluster_range
 from activ.readfile import TrackTBIFile
 from activ.clustering import umap_cluster_sweep
 from activ import load_data
 
 if __name__ == '__main__':
     def int_list(string):
-        return list(map(int, string.split(",")))
+        if ':' in string:
+            ar = [int(a) for a in string.split(":")]
+            return list(range(ar[0], ar[1]+1))
+        else:
+            return list(map(int, string.split(",")))
     import argparse
 
     parser = argparse.ArgumentParser(usage="%(prog)s [options] output_h5",
