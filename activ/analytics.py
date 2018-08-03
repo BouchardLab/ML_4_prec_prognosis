@@ -1,4 +1,5 @@
 import numpy as np
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 def heatmap(data, row_labels, col_labels, ax=None,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
@@ -36,7 +37,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
     # create an axes on the right side of ax. The width of cax will be 5%
     # of ax and the padding between cax and ax will be fixed at 0.05 inch.
     divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cax = divider.append_axes("right", size="2%", pad=0.1)
 
     # Create colorbar
     cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw, cax=cax)
@@ -51,11 +52,11 @@ def heatmap(data, row_labels, col_labels, ax=None,
     ax.set_yticklabels(row_labels)
     ax.set_xlabel(None)
     if xlab is not None:
-        ax.set_xlabel(xlab)
+        ax.set_xlabel(xlab,fontsize=36)
     if ylab is not None:
-        ax.set_ylabel(ylab)
+        ax.set_ylabel(ylab, fontsize=36)
     if title is not None:
-        ax.set_title(title)
+        ax.set_title(title, fontsize=48)
 
     # Let the horizontal axes labeling appear on top.
     #ax.tick_params(top=True, bottom=False,
