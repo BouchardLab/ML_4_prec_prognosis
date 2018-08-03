@@ -208,11 +208,11 @@ def load_data(uoinmf=False):
     Args:
         uoinmf  : True to load the UoINMF decomposed data
     """
-    if uoinmf is not None:
+    if uoinmf:
         path = resource_filename(__name__, 'data_uoinmf.h5')
         return UoINMFTrackTBIFile(path)
     else:
-        path = resource_filename(__name__, 'data_uoinmf.h5')
+        path = resource_filename(__name__, 'data.h5')
         return TrackTBIFile(path)
 
 
