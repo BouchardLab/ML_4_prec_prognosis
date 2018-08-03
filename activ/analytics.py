@@ -46,7 +46,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
     ax.set_xticks(np.arange(data.shape[1]))
     ax.set_yticks(np.arange(data.shape[0]))
     # ... and label them with the respective list entries.
-    ax.set_xticklabels(col_labels)
+    ax.set_xticklabels(col_labels, rotation=45)
 
     ax.set_yticklabels(row_labels)
     ax.set_xlabel(None)
@@ -62,8 +62,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
     #               labeltop=True, labelbottom=False)
 
     # Rotate the tick labels and set their alignment.
-    #plt.setp(ax.get_xticklabels(), rotation=-30, ha="right",
-    #         rotation_mode="anchor")
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
 
 
     return im, cbar
