@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 def heatmap(data, row_labels, col_labels, ax=None,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
@@ -25,6 +24,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
         cbarlabel  : The label for the colorbar
     All other arguments are directly passed on to the imshow call.
     """
+    import matplotlib.pyplot as plt
 
     if not ax:
         ax = plt.gca()
@@ -33,8 +33,13 @@ def heatmap(data, row_labels, col_labels, ax=None,
     # Plot the heatmap
     im = ax.imshow(data, **kwargs)
 
+    # create an axes on the right side of ax. The width of cax will be 5%
+    # of ax and the padding between cax and ax will be fixed at 0.05 inch.
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+
     # Create colorbar
-    cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw)
+    cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw, cax=cax)
     cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
 
     # We want to show all ticks...
