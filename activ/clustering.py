@@ -9,15 +9,34 @@ from sklearn.model_selection import cross_val_score
 
 from activ.pipeline import run_umap, cluster_range
 
+def path_tuple(type_name, **kwargs):
+    from collections import namedtuple
+    keys = sorted(kwargs.keys())
+    tup = namedtuple(type_name, keys)
+    return tup(**kwargs)
+
 class UmapClusteringResults(object):
+
+    path = path_tuple("UmapClusteringResultsPath",
+        scores = 'score',
+        norm_scores = 'norm_score',
+        cluster_sizes = 'cluster_sizes',
+        umap_dimensions = 'umap_dimensions',
+        umap_n_neighbors = "umap_n_neighbors",
+        umap_min_dist = "umap_min_dist",
+        seed = "seed",
+        clusters = "clusters",
+        embeddings = "umap_embeddings"
+    )
 
     def __init__(self, results_path):
         self.outdir = _op.dirname(_op.abspath(results_path))
         f = _h5py.File(results_path, 'r')
-        self.acc_samples = f['score'][:]
-        self.chance_samples = f['norm_score'][:]
-        self.cluster_sizes = f['cluster_sizes'][:]
-        self.umap_dims = f['umap_dimensions'][:]
+        self.acc_samples = f[self.path.scores][:]
+        self.chance_samples = f[self.path.norm_scores][:]
+        self.cluster_sizes = f[self.path.cluster_sizes][:]
+        self.umap_dims = f[self.path.umap_dimensions][:]
+        self.clusters = f[self.path.clusters][:]
         self.__acc = self.reshape(self.acc_samples)
         self.__chance = self.reshape(self.chance_samples)
         f.close()
@@ -132,6 +151,13 @@ def umap_cluster_sweep(iterations, cluster_data, umap_dims, cluster_sizes,
     output_shape = (n_iters, len(umap_dims), len(cluster_sizes), cv_folds)
     umap_params_shape = (n_iters, len(umap_dims))
     clusters_shape = (n_iters, len(umap_dims), len(cluster_sizes), n_samples)
+    embeddings_shape = (n_iters, n_samples, sum(umap_dims))
+    emb_scale = _np.zeros(embeddings_shape[1], dtype=int)
+    idx = 0
+    for d in umap_dims:
+        for i in range(d):
+            emb_scale[idx] = d
+            idx += 1
 
     if seed is None:
         seed = int(round(_time() * 1000) % 2**32)
@@ -144,15 +170,20 @@ def umap_cluster_sweep(iterations, cluster_data, umap_dims, cluster_sizes,
             h5group = _h5py.File(h5group, 'w')
             close_grp = True
         logger.debug('saving results to %s (%s)' % (h5group.name, h5group.file.filename))
-        score = h5group.create_dataset("score", shape=output_shape, dtype=_np.float64)
-        norm_score = h5group.create_dataset("norm_score", shape=output_shape, dtype=_np.float64)
-        clusters = h5group.create_dataset("clusters", shape=clusters_shape, dtype=int)
-        h5group.create_dataset("umap_dimensions", data=umap_dims)
-        h5group.create_dataset("umap_n_neighbors", data=n_neighbors)
-        h5group.create_dataset("umap_min_dist", data=min_dist)
-        h5group.create_dataset("cluster_sizes", data=cluster_sizes)
-        h5group.create_dataset("seed", data=seed)
+        score = h5group.create_dataset(UmapClusteringResults.path.scores, shape=output_shape, dtype=_np.float64)
+        norm_score = h5group.create_dataset(UmapClusteringResults.path.norm_scores, shape=output_shape, dtype=_np.float64)
+        clusters = h5group.create_dataset(UmapClusteringResults.path.clusters, shape=clusters_shape, dtype=int)
+        all_embeddings = h5group.create_dataset(UmapClusteringResults.path.embeddings, shape=embeddings_shape, dtype=_np.float64)
+        emb_scale = h5group.create_dataset(UmapClusteringResults.path.embeddings + '_dimscale', data=emb_scale)
+        all_embeddings.dims.create_scale(emb_scale, "Embedding size")
+        all_embeddings.dims[1].attach_scale(emb_scale)
+        h5group.create_dataset(UmapClusteringResults.path.umap_dimensions, data=umap_dims)
+        h5group.create_dataset(UmapClusteringResults.path.umap_n_neighbors, data=n_neighbors)
+        h5group.create_dataset(UmapClusteringResults.path.umap_min_dist, data=min_dist)
+        h5group.create_dataset(UmapClusteringResults.path.cluster_sizes, data=cluster_sizes)
+        h5group.create_dataset(UmapClusteringResults.path.seed, data=seed)
     else:
+        all_embeddings = _np.zeros(embeddings_shape, dtype=_np.float64)
         score = _np.zeros(output_shape)
         norm_score = _np.zeros(output_shape)
         clusters = _np.zeros(clusters_shape, dtype=int)
@@ -162,10 +193,14 @@ def umap_cluster_sweep(iterations, cluster_data, umap_dims, cluster_sizes,
     all_clusters = _np.zeros(clusters_shape[1:], dtype=int)
     for iter_i in range(n_iters):
         logger.info("== begin iteration %s ==" % iter_i)
+        dim_b = 0
         for ii, num_dims in enumerate(umap_dims): # umap dimension
             embedding = run_umap(cluster_data,  num_dims,
                                  n_neighbors=n_neighbors,
                                  min_dist=min_dist)
+            dim_e = dim_b + num_dims
+            all_embeddings[iter_i, :, dim_b:dim_e] = embedding
+            dim_b = dim_e
             cluster_results = cluster_range(embedding, cluster_sizes, method='ward')
             for jj in range(cluster_results.shape[1]):
                 labels = cluster_results[:, jj]
@@ -189,4 +224,4 @@ def umap_cluster_sweep(iterations, cluster_data, umap_dims, cluster_sizes,
     if close_grp:
         h5group.close()
 
-    return score, norm_score, seed, clusters
+    return score, norm_score, seed, all_embeddings, clusters
