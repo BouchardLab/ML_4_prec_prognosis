@@ -68,7 +68,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
 
     return im, cbar
 
-def outcome_factors_heatmap(data, row_labels, col_labels, ax=None,
+def nmf_bases_heatmap(data, row_labels, col_labels, sort=True, ax=None,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
             title=None, **kwargs):
     """
@@ -97,8 +97,17 @@ def outcome_factors_heatmap(data, row_labels, col_labels, ax=None,
         ax = plt.gca()
 
     kwargs.setdefault('cmap', 'binary')
+
+    if sort==True:
+        feature_order = np.argsort(np.max(data, axis=0))
+        sorted_bases = data[:,feature_order[::-1]]
+        order = np.argsort(np.max(sorted_bases, axis=1))
+        sorted_bases = sorted_bases[order[::-1],:]
+        sorted_data = sorted_bases
+        sorted_labels = col_labels[feature_order]
+
     # Plot the heatmap
-    im = ax.imshow(data, **kwargs)
+    im = ax.imshow(sorted_data, **kwargs)
 
     # create an axes on the right side of ax. The width of cax will be 5%
     # of ax and the padding between cax and ax will be fixed at 0.05 inch.
@@ -113,7 +122,7 @@ def outcome_factors_heatmap(data, row_labels, col_labels, ax=None,
     ax.set_xticks(np.arange(data.shape[1]))
     ax.set_yticks(np.arange(data.shape[0]))
     # ... and label them with the respective list entries.
-    ax.set_xticklabels(col_labels)
+    ax.set_xticklabels(sorted_labels)
 
     ax.set_yticklabels(row_labels)
     ax.set_xlabel(None)
@@ -127,6 +136,4 @@ def outcome_factors_heatmap(data, row_labels, col_labels, ax=None,
     # Rotate the tick labels and set their alignment.
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
             rotation_mode="anchor")
-
-
 
