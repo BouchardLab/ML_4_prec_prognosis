@@ -21,6 +21,7 @@ if __name__ == '__main__':
 
     parser.add_argument("output_h5", type=str, help="the path to the HDF5 file to save results to")
     parser.add_argument("-d", "--data", type=str, help="the Track TBI dataset file. use activ.load_data by default", default=None)
+    parser.add_argument("-p", "--pdata", type=str, help="the Track TBI dataset file to use for predictions. use activ.load_data by default", default=None)
     parser.add_argument("-s", "--self_predict", help="predict clusters with dataset used to form clusters", action='store_true', default=False)
     parser.add_argument("-b", "--biomarkers", help="form clusters using biomarkers. use outcomes by default", action='store_true', default=False)
     parser.add_argument("-i", "--iters", type=int, help="the number of iterations to run", default=50)
@@ -39,29 +40,8 @@ if __name__ == '__main__':
 
     args = list()
     kwargs = dict()
-    data = None
-    if pargs.data is None:
-        data = load_data()
-    else:
-        data = TrackTBIFile(pargs.data)
 
-    args.append(pargs.iters)
-    if pargs.biomarkers:
-        args.append(data.biomarkers)
-        if pargs.self_predict:
-            kwargs['predict_data'] = data.biomarkers
-        else:
-            kwargs['predict_data'] = data.outcomes
-    else:
-        args.append(data.outcomes)
-        if pargs.self_predict:
-            kwargs['predict_data'] = data.outcomes
-        else:
-            kwargs['predict_data'] = data.biomarkers
-
-    args.append(pargs.umap_dims)
-    args.append(pargs.cluster_size)
-
+    # set up logging
     logger = logging.getLogger('umap_cluster_sweep')
     logger.addHandler(logging.StreamHandler(sys.stderr))
     log_level = logging.INFO
@@ -69,6 +49,41 @@ if __name__ == '__main__':
         log_level = logging.WARNING
     logger.setLevel(log_level)
     kwargs['logger'] = logger
+
+    data = None         # source of data for building clusters
+    pdata = None        # source of data for predicting cluster labels
+    if pargs.data is None:
+        data = load_data()
+    else:
+        data = TrackTBIFile(pargs.data)
+
+    if pargs.pdata is None:
+        pdata = data
+    else:
+        pdata = TrackTBIFile(pargs.pdata)
+
+    args.append(pargs.iters)
+    if pargs.biomarkers:
+        logger.info('building clusters with biomarkers from %s' % data.filename)
+        args.append(data.biomarkers)
+        if pargs.self_predict:
+            logger.info('predicting cluster labels with biomarkers from %s' % pdata.filename)
+            kwargs['predict_data'] = pdata.biomarkers
+        else:
+            logger.info('predicting cluster labels with outcomes from %s' % pdata.filename)
+            kwargs['predict_data'] = pdata.outcomes
+    else:
+        logger.info('building clusters with outcomes from %s' % data.filename)
+        args.append(data.outcomes)
+        if pargs.self_predict:
+            logger.info('predicting cluster labels with outcomes from %s' % pdata.filename)
+            kwargs['predict_data'] = pdata.outcomes
+        else:
+            logger.info('predicting cluster labels with biomarkers from %s' % pdata.filename)
+            kwargs['predict_data'] = pdata.biomarkers
+
+    args.append(pargs.umap_dims)
+    args.append(pargs.cluster_size)
 
     path = pargs.output_h5
     if os.path.exists(path) and not pargs.force:
