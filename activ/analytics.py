@@ -98,16 +98,19 @@ def nmf_bases_heatmap(data, row_labels, col_labels, sort=True, ax=None,
 
     kwargs.setdefault('cmap', 'binary')
 
+    plot_data = data
+    xlabels = col_labels
     if sort==True:
-        feature_order = np.argsort(np.max(data, axis=0))
-        sorted_bases = data[:,feature_order[::-1]]
-        order = np.argsort(np.max(sorted_bases, axis=1))
-        sorted_bases = sorted_bases[order[::-1],:]
-        sorted_data = sorted_bases
-        sorted_labels = col_labels[feature_order]
+        to_sort = list()
+        for i, c in enumerate(data.T):
+            mi = np.argmax(c)
+            to_sort.append((mi, -1*c[mi], i))
+        new_order = [t[2] for t in sorted(to_sort)]
+        plot_data = data[:,new_order]
+        xlabels = [xlabels[i] for i in new_order]
 
     # Plot the heatmap
-    im = ax.imshow(sorted_data, **kwargs)
+    im = ax.imshow(plot_data, **kwargs)
 
     # create an axes on the right side of ax. The width of cax will be 5%
     # of ax and the padding between cax and ax will be fixed at 0.05 inch.
@@ -119,10 +122,10 @@ def nmf_bases_heatmap(data, row_labels, col_labels, sort=True, ax=None,
     cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
 
     # We want to show all ticks...
-    ax.set_xticks(np.arange(data.shape[1]))
-    ax.set_yticks(np.arange(data.shape[0]))
+    ax.set_xticks(np.arange(plot_data.shape[1]))
+    ax.set_yticks(np.arange(plot_data.shape[0]))
     # ... and label them with the respective list entries.
-    ax.set_xticklabels(sorted_labels)
+    ax.set_xticklabels(xlabels)
 
     ax.set_yticklabels(row_labels)
     ax.set_xlabel(None)
