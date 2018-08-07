@@ -2,7 +2,9 @@ from PyUoI.UoINMF import UoINMF
 from activ import load_data
 from activ.data_normalization import data_normalization
 from sklearn.cluster import DBSCAN
+from sklearn.decomposition import NMF
 from hdbscan import HDBSCAN
+from datetime import  datetime
 
 import h5py
 import sys
@@ -10,7 +12,7 @@ import os
 import argparse
 
 def log(msg):
-    print(msg, file=sys.stderr)
+    print("%s - %s" % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), msg), file=sys.stderr)
 
 parser = argparse.ArgumentParser(usage="%(prog)s [options]")
 parser.add_argument('-b', '--bootstraps', type=int, help='the number of bootstraps to run', default=50)
@@ -29,11 +31,12 @@ if os.path.exists(args.output):
 
 output = args.output
 
+start = datetime.now()
 log('loading data')
 data = load_data()
 log('normalizing data')
 oc = data_normalization(data.outcomes, 'positive')
-uoinmf_big = UoINMF(n_bootstraps_i=50, ranks=list(range(2,20)), dbscan=HDBSCAN(min_cluster_size=20))
+uoinmf_big = UoINMF(n_bootstraps_i=50, ranks=list(range(2,20)), dbscan=HDBSCAN(min_cluster_size=20, core_dist_n_jobs=1))
 log('running UoINMF')
 log(repr(uoinmf_big))
 uoinmf_big.fit(oc)
@@ -43,4 +46,6 @@ f = h5py.File(output, 'w')
 f.create_dataset('outcome_bases', data=uoinmf_big.components_)
 f.create_dataset('outcome_bases_samples', data=uoinmf_big.bases_samples_)
 f.close()
-log('done')
+end = datetime.now()
+log('done - found %d bases' % uoinmf_big.components_.shape[0])
+log('time elapsed: %s' % str(end-start))
