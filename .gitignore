@@ -8,3 +8,7 @@ build/
 
 #jupyter notebook
 .ipynb_checkpoints/
+
+# figures
+*.pdf
+*.png
