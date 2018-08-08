@@ -56,8 +56,8 @@ class TrackTBIFile(object):
 
         Args:
             dest                : the path to an HDF5 file or the :class:`h5py.Group` to write to
-            biomarkers          : the biomarker data with dimensions (n_samples, n_features)
-            outcomes            : the outcomes data with dimensions (n_samples, n_features)
+            biomarkers          : the biomarker data with shape (n_samples, n_features)
+            outcomes            : the outcomes data with shape (n_samples, n_features)
             biomarker_features  : the names of the biomarker features (optional)
             outcome_features    : the names of the outcome features (optional)
             patient_ids         : the patient IDs (optional)
@@ -105,14 +105,48 @@ class TrackTBIFile(object):
 
 class UoINMFTrackTBIFile(TrackTBIFile):
 
-    __bm_bases = 'bm_h1'
-    __oc_bases = 'oc_h1'
+    __bm_bases = 'biomarker_bases'
+    __oc_bases = 'outcome_bases'
 
     def __init__(self, filename):
         super(UoINMFTrackTBIFile, self).__init__(filename)
         with _h5py.File(self.filename, 'r') as f:
             self.biomarker_bases = f[self.__bm_bases][:]
             self.outcome_bases = f[self.__oc_bases][:]
+
+    @classmethod
+    def write(cls, dest, biomarkers, outcomes, biomarker_bases, outcome_bases,
+              biomarker_features=None, outcome_features=None, patient_ids=None):
+        """
+        Write biomarkers and outcomes to an HDF5 file
+
+        Args:
+            dest                : the path to an HDF5 file or the :class:`h5py.Group` to write to
+            biomarkers          : the biomarker data with shape (n_samples, n_features)
+            outcomes            : the outcomes data with shape (n_samples, n_features)
+            biomarker_bases     : the biomarker bases with shape (n_samples, n_features)
+            outcome_bases       : the outcomes data with shape (n_samples, n_features)
+            biomarker_features  : the names of the biomarker features (optional)
+            outcome_features    : the names of the outcome features (optional)
+            patient_ids         : the patient IDs (optional)
+
+        If biomarker_features, outcome_features, or patient_ids are provided, they will be
+        added as dimension scales to the appropriate dimension of their respective datasets.
+        """
+        h5group = dest
+        close_grp = False
+        if isinstance(dest, str):
+            h5group = _h5py.File(dest, 'w')
+            close_grp = True
+        super(UoINMFTrackTBIFile, cls).write(h5group, biomarkers, outcomes,
+                                             biomarker_features=biomarker_features,
+                                             outcome_features=outcome_features,
+                                             patient_ids=patient_ids)
+        bm_dset = h5group.create_dataset(cls.__bm_bases, data=biomarker_bases)
+        oc_dset = h5group.create_dataset(cls.__oc_bases, data=outcome_bases)
+        if close_grp:
+            h5group.close()
+
 
 def read_file(filename):
     try:
