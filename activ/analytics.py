@@ -68,7 +68,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
 
     return im, cbar
 
-def nmf_bases_heatmap(data, row_labels, col_labels, sort=True, ax=None,
+def nmf_bases_heatmap(data, col_labels, sort=True, ax=None,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
             title=None, **kwargs):
     """
@@ -97,16 +97,20 @@ def nmf_bases_heatmap(data, row_labels, col_labels, sort=True, ax=None,
         ax = plt.gca()
 
     kwargs.setdefault('cmap', 'binary')
+    row_labels = np.arange(data.shape[0]) + 1
 
     plot_data = data
     xlabels = col_labels
     if sort==True:
+        factor_order = np.argsort(np.max(plot_data, axis=1))[::-1]
+        row_labels = row_labels[factor_order]
+        plot_data = plot_data[factor_order]
         to_sort = list()
-        for i, c in enumerate(data.T):
+        for i, c in enumerate(plot_data.T):
             mi = np.argmax(c)
             to_sort.append((mi, -1*c[mi], i))
         new_order = [t[2] for t in sorted(to_sort)]
-        plot_data = data[:,new_order]
+        plot_data = plot_data[:,new_order]
         xlabels = [xlabels[i] for i in new_order]
 
     # Plot the heatmap
