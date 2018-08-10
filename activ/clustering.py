@@ -94,9 +94,9 @@ class UmapClusteringResults(object):
         _plt.savefig(dest)
         return im, cbar
 
-def umap_cluster_sweep(iterations, cluster_data, umap_dims, cluster_sizes,
+def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes,
                        predict_data=None, h5group=None, classifier=RFC(100),
-                       umap_args=None, cv_folds=5,
+                       umap_args=None, cv_folds=5, mpicomm=None,
                        seed=None, logger=None):
     """
     Run UMAP-HCL parameter sweep.
@@ -130,20 +130,37 @@ def umap_cluster_sweep(iterations, cluster_data, umap_dims, cluster_sizes,
         umap_min_dist       - the UMAP min_dist parameter
 
     """
+    if seed is None:
+        seed = int(round(_time() * 1000) % 2**32)
+    iterations = range(n_iters)
+    rank = 0
+    if mpicomm:
+        rank = mpicomm.Get_rank()
+        iterations = range(rank, n_iters, mpicomm.Get_size())
+        if rank != 0:
+            seed = None
+        seed = mpicomm.bcast(seed, root=0)
+        seed += rank
+    _np.random.seed(seed)
+
     if logger is None:
         logger = _logging.getLogger('umap_cluster_sweep')
+
+    def log1(msg):
+        if rank == 0:
+            logger.info(msg)
+
     if predict_data is None:
-        logger.info('using cluster_data predict clusters, which will be inferred from cluster_data')
+        log1('using cluster_data predict clusters, which will be inferred from cluster_data')
         predict_data = cluster_data
     if predict_data.shape[0] != cluster_data.shape[0]:
         raise ValueError("predict_data and cluster_data must have the same number of samples")
-    logger.info('predicting clusters with %s' % str(classifier))
-    logger.info('UMAP dimensions: %s' % str(umap_dims))
-    logger.info('Cluster sizes: %s' % str(cluster_sizes))
+    log1('predicting clusters with %s' % str(classifier))
+    log1('UMAP dimensions: %s' % str(umap_dims))
+    log1('Cluster sizes: %s' % str(cluster_sizes))
     if umap_args is None:
         umap_args = dict()
 
-    n_iters = iterations
     n_neighbors = umap_args.get('n_neighbors', 10)
     min_dist = umap_args.get('min_dist', 0.000)
     n_samples = cluster_data.shape[0]
@@ -159,29 +176,36 @@ def umap_cluster_sweep(iterations, cluster_data, umap_dims, cluster_sizes,
             emb_scale[idx] = d
             idx += 1
 
-    if seed is None:
-        seed = int(round(_time() * 1000) % 2**32)
-    _np.random.seed(seed)
-
     close_grp = False
     if h5group is not None:
         # write to a file path if that's what we were given
         if isinstance(h5group, str):
-            h5group = _h5py.File(h5group, 'w')
+            if mpicomm is not None:
+                h5group = _h5py.File(h5group, 'w', driver='mpio', comm=mpicomm)
+            else:
+                h5group = _h5py.File(h5group, 'w')
             close_grp = True
         logger.debug('saving results to %s (%s)' % (h5group.name, h5group.file.filename))
         score = h5group.create_dataset(UmapClusteringResults.path.scores, shape=output_shape, dtype=_np.float64)
         norm_score = h5group.create_dataset(UmapClusteringResults.path.norm_scores, shape=output_shape, dtype=_np.float64)
         clusters = h5group.create_dataset(UmapClusteringResults.path.clusters, shape=clusters_shape, dtype=int)
         all_embeddings = h5group.create_dataset(UmapClusteringResults.path.embeddings, shape=embeddings_shape, dtype=_np.float64)
-        emb_scale = h5group.create_dataset(UmapClusteringResults.path.embeddings + '_dimscale', data=emb_scale)
-        all_embeddings.dims.create_scale(emb_scale, "Embedding size")
-        all_embeddings.dims[1].attach_scale(emb_scale)
-        h5group.create_dataset(UmapClusteringResults.path.umap_dimensions, data=umap_dims)
-        h5group.create_dataset(UmapClusteringResults.path.umap_n_neighbors, data=n_neighbors)
-        h5group.create_dataset(UmapClusteringResults.path.umap_min_dist, data=min_dist)
-        h5group.create_dataset(UmapClusteringResults.path.cluster_sizes, data=cluster_sizes)
-        h5group.create_dataset(UmapClusteringResults.path.seed, data=seed)
+
+        emb_scale_dset = h5group.create_dataset(UmapClusteringResults.path.embeddings + '_dimscale', dtype=int, shape=(len(emb_scale),))
+        all_embeddings.dims.create_scale(emb_scale_dset, "Embedding size")
+        all_embeddings.dims[1].attach_scale(emb_scale_dset)
+        umap_dims_dset = h5group.create_dataset(UmapClusteringResults.path.umap_dimensions, dtype=int, shape=(len(umap_dims),))
+        n_neighbors_dset = h5group.create_dataset(UmapClusteringResults.path.umap_n_neighbors, dtype=int, shape=())
+        min_dist_dset = h5group.create_dataset(UmapClusteringResults.path.umap_min_dist, dtype=_np.float64, shape=())
+        cluster_sizes_dset = h5group.create_dataset(UmapClusteringResults.path.cluster_sizes, dtype=int, shape=(len(cluster_sizes),))
+        seed_dset = h5group.create_dataset(UmapClusteringResults.path.seed, dtype=int, shape=())
+        if rank == 0:
+            emb_scale_dset[()] = emb_scale
+            umap_dims_dset[()] = umap_dims
+            n_neighbors_dset[()] = n_neighbors
+            min_dist_dset[()] = min_dist
+            cluster_sizes_dset[()] = cluster_sizes
+            seed_dset[()] = seed
     else:
         all_embeddings = _np.zeros(embeddings_shape, dtype=_np.float64)
         score = _np.zeros(output_shape)
@@ -191,7 +215,7 @@ def umap_cluster_sweep(iterations, cluster_data, umap_dims, cluster_sizes,
     result = _np.zeros(output_shape[1:], dtype=_np.float64)
     norm_result = _np.zeros(output_shape[1:])
     all_clusters = _np.zeros(clusters_shape[1:], dtype=int)
-    for iter_i in range(n_iters):
+    for iter_i in iterations:
         logger.info("== begin iteration %s ==" % iter_i)
         dim_b = 0
         for ii, num_dims in enumerate(umap_dims): # umap dimension
