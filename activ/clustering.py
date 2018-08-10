@@ -169,7 +169,7 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes,
     umap_params_shape = (n_iters, len(umap_dims))
     clusters_shape = (n_iters, len(umap_dims), len(cluster_sizes), n_samples)
     embeddings_shape = (n_iters, n_samples, sum(umap_dims))
-    emb_scale = _np.zeros(embeddings_shape[1], dtype=int)
+    emb_scale = _np.zeros(embeddings_shape[2], dtype=int)
     idx = 0
     for d in umap_dims:
         for i in range(d):
@@ -193,7 +193,7 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes,
 
         emb_scale_dset = h5group.create_dataset(UmapClusteringResults.path.embeddings + '_dimscale', dtype=int, shape=(len(emb_scale),))
         all_embeddings.dims.create_scale(emb_scale_dset, "Embedding size")
-        all_embeddings.dims[1].attach_scale(emb_scale_dset)
+        all_embeddings.dims[2].attach_scale(emb_scale_dset)
         umap_dims_dset = h5group.create_dataset(UmapClusteringResults.path.umap_dimensions, dtype=int, shape=(len(umap_dims),))
         n_neighbors_dset = h5group.create_dataset(UmapClusteringResults.path.umap_n_neighbors, dtype=int, shape=())
         min_dist_dset = h5group.create_dataset(UmapClusteringResults.path.umap_min_dist, dtype=_np.float64, shape=())
