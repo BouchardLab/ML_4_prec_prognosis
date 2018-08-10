@@ -216,7 +216,7 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes,
     norm_result = _np.zeros(output_shape[1:])
     all_clusters = _np.zeros(clusters_shape[1:], dtype=int)
     for iter_i in iterations:
-        logger.info("== begin iteration %s ==" % iter_i)
+        logger.info("BEGIN iteration %s" % iter_i)
         dim_b = 0
         for ii, num_dims in enumerate(umap_dims): # umap dimension
             embedding = run_umap(cluster_data,  num_dims,
@@ -233,7 +233,7 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes,
                 result[ii,jj] = cross_val_score(classifier, predict_data, labels, cv=5)
                 norm_result[ii,jj] = cross_val_score(classifier, predict_data, _np.random.permutation(labels), cv=5)
             all_clusters[ii] = cluster_results.T
-        logger.info("== end iteration %s ==" % iter_i)
+        logger.info("END iteration %s" % iter_i)
 
         # write everything back for return
         score[iter_i] = result
