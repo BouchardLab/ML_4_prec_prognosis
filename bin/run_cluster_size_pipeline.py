@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 import argparse
 import logging
-
+import h5py
 from activ.readfile import TrackTBIFile
 from activ.clustering import umap_cluster_sweep, UmapClusteringResults
 from activ import load_data
@@ -132,7 +132,7 @@ if pargs.embeddings is not None:
     hdf5_to_close.append(f)
     kwargs['precomputed_embeddings'] = f[UmapClusteringResults.path.embeddings]
     args.append(f[UmapClusteringResults.path.umap_dimensions][:])
-    log("Using dimensions and embeddings from %s" % pargs.embeddings)
+    log1("Using dimensions and embeddings from %s" % pargs.embeddings)
 else:
     args.append(pargs.umap_dims)
 
