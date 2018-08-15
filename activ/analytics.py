@@ -69,6 +69,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
     return im, cbar
 
 def nmf_bases_heatmap(data, col_labels, sort=True, ax=None,
+            cumsum_thresh=0.99,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
             title=None, **kwargs):
     """
@@ -99,7 +100,10 @@ def nmf_bases_heatmap(data, col_labels, sort=True, ax=None,
     kwargs.setdefault('cmap', 'binary')
     row_labels = np.arange(data.shape[0]) + 1
 
-    plot_data = data
+
+    plot_data = np.array(data)
+
+
     xlabels = col_labels
     if sort==True:
         factor_order = np.argsort(np.max(plot_data, axis=1))[::-1]
@@ -112,6 +116,12 @@ def nmf_bases_heatmap(data, col_labels, sort=True, ax=None,
         new_order = [t[2] for t in sorted(to_sort)]
         plot_data = plot_data[:,new_order]
         xlabels = [xlabels[i] for i in new_order]
+
+    for i in range(plot_data.shape[0]):
+        order = np.argsort(plot_data[i])[::-1]
+        cumsum = np.cumsum(plot_data[i,order])
+        cumsum = cumsum / cumsum[-1]
+        plot_data[i][order[cumsum > cumsum_thresh]] = 0.0
 
     # Plot the heatmap
     im = ax.imshow(plot_data, **kwargs)

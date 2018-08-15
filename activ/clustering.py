@@ -94,8 +94,9 @@ class UmapClusteringResults(object):
         _plt.savefig(dest)
         return im, cbar
 
-def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes,
+def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='mahalanobis',
                        predict_data=None, h5group=None, classifier=RFC(100),
+                       precomputed_embeddings = None,
                        umap_args=None, cv_folds=5, mpicomm=None,
                        seed=None, logger=None):
     """
@@ -216,16 +217,19 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes,
     norm_result = _np.zeros(output_shape[1:])
     all_clusters = _np.zeros(clusters_shape[1:], dtype=int)
     for iter_i in iterations:
-        logger.info("== begin iteration %s ==" % iter_i)
+        logger.info("BEGIN iteration %s" % iter_i)
         dim_b = 0
         for ii, num_dims in enumerate(umap_dims): # umap dimension
-            embedding = run_umap(cluster_data,  num_dims,
+            dim_e = dim_b + num_dims
+            if precomputed_embeddings is None:
+                embedding = run_umap(cluster_data,  num_dims,
                                  n_neighbors=n_neighbors,
                                  min_dist=min_dist)
-            dim_e = dim_b + num_dims
-            all_embeddings[iter_i, :, dim_b:dim_e] = embedding
+                all_embeddings[iter_i, :, dim_b:dim_e] = embedding
+            else:
+                embedding = precomputed_embeddings[iter_i, :, dim_b:dim_e]
             dim_b = dim_e
-            cluster_results = cluster_range(embedding, cluster_sizes, method='ward')
+            cluster_results = cluster_range(embedding, cluster_sizes, method='ward', metric=metric)
             for jj in range(cluster_results.shape[1]):
                 labels = cluster_results[:, jj]
                 num_clusters = cluster_sizes[jj]
@@ -233,7 +237,7 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes,
                 result[ii,jj] = cross_val_score(classifier, predict_data, labels, cv=5)
                 norm_result[ii,jj] = cross_val_score(classifier, predict_data, _np.random.permutation(labels), cv=5)
             all_clusters[ii] = cluster_results.T
-        logger.info("== end iteration %s ==" % iter_i)
+        logger.info("END iteration %s" % iter_i)
 
         # write everything back for return
         score[iter_i] = result
