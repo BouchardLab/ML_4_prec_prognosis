@@ -143,6 +143,7 @@ if os.path.exists(path) and not pargs.force:
     sys.stderr.write("%s already exists. cautiously exiting. use -f to override\n" % path)
     sys.exit(255)
 kwargs['h5group'] = path
+kwargs['metric'] = pargs.metric
 
 start = datetime.now()
 log1("Begin UMAP pipeline at %s" % start.strftime('%Y-%m-%d %H:%M:%S'))
