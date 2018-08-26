@@ -12,3 +12,6 @@ build/
 # figures
 *.pdf
 *.png
+
+# files
+*.h5
