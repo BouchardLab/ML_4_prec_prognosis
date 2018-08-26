@@ -15,3 +15,6 @@ build/
 
 # files
 *.h5
+
+# results
+/results
