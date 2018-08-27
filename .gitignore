@@ -12,3 +12,9 @@ build/
 # figures
 *.pdf
 *.png
+
+# files
+*.h5
+
+# results
+/results
