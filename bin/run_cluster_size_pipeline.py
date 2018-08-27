@@ -48,6 +48,7 @@ try:
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
+    nranks = comm.Get_size()
 except ImportError:
     rank = 0
     nranks = 1
@@ -128,6 +129,7 @@ if pargs.embeddings is not None:
     if comm is not None:
         fkwargs['driver'] = 'mpio'
         fkwargs['comm'] = comm
+    sys.stderr.write("loading embeddings from %s\n" % pargs.embeddings)
     f = h5py.File(pargs.embeddings, **fkwargs)
     hdf5_to_close.append(f)
     kwargs['precomputed_embeddings'] = f[UmapClusteringResults.path.embeddings]
@@ -151,5 +153,7 @@ end = datetime.now()
 log1("End UMAP pipeline at %s" % end.strftime('%Y-%m-%d %H:%M:%S'))
 log1("Time elapsed: %s" % str(end-start))
 
+log1("Closing files")
 for f in hdf5_to_close:
     f.close()
+log1("Done closing files")
