@@ -195,5 +195,5 @@ def run_umap(X, n_components, n_neighbors=10, min_dist=0.1, metric='euclidean', 
                n_neighbors=n_neighbors,
                min_dist=min_dist,
                metric=metric,
-               random_state=random_state).fit_transform(X)
+               random_state=random_state).fit_transform(normed)
     return ret
