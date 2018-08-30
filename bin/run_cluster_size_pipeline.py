@@ -30,7 +30,8 @@ parser.add_argument("-u", "--umap_dims", type=int_list, help="a comma-separated 
 parser.add_argument("-c", "--cluster_size", type=int_list, help="a comma-separated list of the cluster sizes",
                     default=list(range(2, 15)))
 parser.add_argument("-e", "--embeddings", type=str, help="the path to the file to use embeddings from", default=None)
-parser.add_argument("-l", "--log", type=str, help="the file to write log messages to [stderr]", default=None)
+parser.add_argument("-C", "--collapse", help="collapse distance matrix (i.e. take mean) across UMAP dimensions before clustering", action='store_true', default=False)
+parser.add_argument("-l", "--log", type=str, help="the file to write log messages to [stdout]", default=None)
 parser.add_argument("-f", "--force", help="force rerunning i.e. overwrite output_h5", action='store_true', default=False)
 parser.add_argument("-q", "--quiet", help="make log messages quiet", action='store_true', default=False)
 
@@ -48,6 +49,7 @@ try:
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
+    nranks = comm.Get_size()
 except ImportError:
     rank = 0
     nranks = 1
@@ -62,16 +64,18 @@ logger_name = 'umap_cluster_sweep'
 handler = None
 logfmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
+if rank == 0:
+    sys.stderr.write("%d ranks before setting up logger\n" % comm.Get_size())
 if nranks > 1:
     from activ.mpitools import MPILogHandler
     logger_name = logger_name + "-%d" % rank
     if pargs.log is None:
-        handler = logging.StreamHandler(sys.stderr)
+        handler = logging.StreamHandler(sys.stdout)
     else:
         handler = MPILogHandler(pargs.log, comm)
     kwargs['mpicomm'] = comm
 else:
-    stream = sys.stderr if pargs.log is None else open(pargs.log, 'w')
+    stream = sys.stdout if pargs.log is None else open(pargs.log, 'w')
     handler = logging.StreamHandler(stream)
 handler.setFormatter(logging.Formatter(logfmt))
 logger = logging.getLogger(logger_name)
@@ -82,6 +86,9 @@ if pargs.quiet:
     log_level = logging.WARNING
 logger.setLevel(log_level)
 kwargs['logger'] = logger
+
+if rank == 0:
+    sys.stderr.write("%d ranks after setting up logger\n" % comm.Get_size())
 
 data = None         # source of data for building clusters
 pdata = None        # source of data for predicting cluster labels
@@ -128,6 +135,7 @@ if pargs.embeddings is not None:
     if comm is not None:
         fkwargs['driver'] = 'mpio'
         fkwargs['comm'] = comm
+    sys.stderr.write("loading embeddings from %s\n" % pargs.embeddings)
     f = h5py.File(pargs.embeddings, **fkwargs)
     hdf5_to_close.append(f)
     kwargs['precomputed_embeddings'] = f[UmapClusteringResults.path.embeddings]
@@ -142,8 +150,19 @@ path = pargs.output_h5
 if os.path.exists(path) and not pargs.force:
     sys.stderr.write("%s already exists. cautiously exiting. use -f to override\n" % path)
     sys.exit(255)
-kwargs['h5group'] = path
+
+
+# open output file
+fkwargs = {'mode': 'w'}
+if comm is not None:
+    fkwargs['driver'] = 'mpio'
+    fkwargs['comm'] = comm
+f = h5py.File(path, **fkwargs)
+hdf5_to_close.append(f)
+
+kwargs['h5group'] = f
 kwargs['metric'] = pargs.metric
+kwargs['collapse'] = pargs.collapse
 
 start = datetime.now()
 log1("Begin UMAP pipeline at %s" % start.strftime('%Y-%m-%d %H:%M:%S'))
@@ -152,5 +171,13 @@ end = datetime.now()
 log1("End UMAP pipeline at %s" % end.strftime('%Y-%m-%d %H:%M:%S'))
 log1("Time elapsed: %s" % str(end-start))
 
+#log1("Closing files: %s" % str(hdf5_to_close))
+if comm is not None:
+    del handler
 for f in hdf5_to_close:
+    fname = f.filename
+    sys.stderr.write("closing %s in main\n" % fname)
     f.close()
+    sys.stderr.write("closed %s in main\n" % fname)
+#log1("Done closing files")
+#sys.exit(0)

@@ -72,7 +72,17 @@ def cluster_range(X, n_clusters, method='single', metric='euclidean'):
         an n x len(n_clusters) array. cluster assignments for each observation
         across for each element in n_clusters
     """
-    dist = pdist(X, metric=metric)
+    dist = None
+    if len(X.shape) == 3:
+        # average distance matrices across m datasets
+        m = X.shape[0]
+        n = X.shape[1]
+        dist = np.zeros((m, n*(n-1)//2))
+        for i in range(m):
+            dist[i] = pdist(X[i], metric=metric)
+        dist = dist.mean(axis=0)
+    else:
+        dist = pdist(X, metric=metric)
     linkmat = linkage(dist, method=method)
     return cut_tree(linkmat, n_clusters)
 
@@ -185,5 +195,5 @@ def run_umap(X, n_components, n_neighbors=10, min_dist=0.1, metric='euclidean', 
                n_neighbors=n_neighbors,
                min_dist=min_dist,
                metric=metric,
-               random_state=random_state).fit_transform(X)
+               random_state=random_state).fit_transform(normed)
     return ret

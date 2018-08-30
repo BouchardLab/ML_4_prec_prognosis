@@ -1,13 +1,16 @@
 import os.path as _op
 import h5py as _h5py
 import numpy as _np
+import scipy.spatial.distance as _spd
+import scipy.cluster.hierarchy as _sch
 import logging as _logging
 from time import time as _time
 
 from sklearn.ensemble import RandomForestClassifier as RFC
 from sklearn.model_selection import cross_val_score
 
-from activ.pipeline import run_umap, cluster_range
+from umap import UMAP
+from .data_normalization import data_normalization
 
 def path_tuple(type_name, **kwargs):
     from collections import namedtuple
@@ -96,7 +99,7 @@ class UmapClusteringResults(object):
 
 def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='mahalanobis',
                        predict_data=None, h5group=None, classifier=RFC(100),
-                       precomputed_embeddings = None,
+                       precomputed_embeddings = None, collapse=False,
                        umap_args=None, cv_folds=5, mpicomm=None,
                        seed=None, logger=None):
     """
@@ -115,6 +118,9 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
         logger                      : a logger for logging progress to
         seed                        : the seed to use for random number generation. default is to use
                                       time
+        precomputed_embeddings      : UMAP embeddings that have already been computed
+        collapse                    : use the mean distance matrix across UMAP embeddings for clustering.
+                                      Note: This will change the shape of outputs
 
     Use 5-fold stratified cross-validation for scoring.
 
@@ -156,6 +162,7 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
         predict_data = cluster_data
     if predict_data.shape[0] != cluster_data.shape[0]:
         raise ValueError("predict_data and cluster_data must have the same number of samples")
+    n = cluster_data.shape[0]
     log1('predicting clusters with %s' % str(classifier))
     log1('UMAP dimensions: %s' % str(umap_dims))
     log1('Cluster sizes: %s' % str(cluster_sizes))
@@ -166,9 +173,14 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
     min_dist = umap_args.get('min_dist', 0.000)
     n_samples = cluster_data.shape[0]
 
-    output_shape = (n_iters, len(umap_dims), len(cluster_sizes), cv_folds)
-    umap_params_shape = (n_iters, len(umap_dims))
-    clusters_shape = (n_iters, len(umap_dims), len(cluster_sizes), n_samples)
+    if collapse:
+        output_shape = (n_iters, len(cluster_sizes), cv_folds)
+        umap_params_shape = (n_iters, dims)
+        clusters_shape = (n_iters, len(cluster_sizes), n_samples)
+    else:
+        output_shape = (n_iters, len(umap_dims), len(cluster_sizes), cv_folds)
+        umap_params_shape = (n_iters, len(umap_dims))
+        clusters_shape = (n_iters, len(umap_dims), len(cluster_sizes), n_samples)
     embeddings_shape = (n_iters, n_samples, sum(umap_dims))
     emb_scale = _np.zeros(embeddings_shape[2], dtype=int)
     idx = 0
@@ -186,7 +198,7 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
             else:
                 h5group = _h5py.File(h5group, 'w')
             close_grp = True
-        logger.debug('saving results to %s (%s)' % (h5group.name, h5group.file.filename))
+        logger.info('saving results to %s (%s)' % (h5group.name, h5group.file.filename))
         score = h5group.create_dataset(UmapClusteringResults.path.scores, shape=output_shape, dtype=_np.float64)
         norm_score = h5group.create_dataset(UmapClusteringResults.path.norm_scores, shape=output_shape, dtype=_np.float64)
         clusters = h5group.create_dataset(UmapClusteringResults.path.clusters, shape=clusters_shape, dtype=int)
@@ -216,27 +228,45 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
     result = _np.zeros(output_shape[1:], dtype=_np.float64)
     norm_result = _np.zeros(output_shape[1:])
     all_clusters = _np.zeros(clusters_shape[1:], dtype=int)
+    dists = _np.zeros((len(umap_dims), n*(n-1)//2), dtype=_np.float64)
+    normalized = data_normalization(cluster_data, 'z-score')
     for iter_i in iterations:
         logger.info("BEGIN iteration %s" % iter_i)
-        dim_b = 0
-        for ii, num_dims in enumerate(umap_dims): # umap dimension
-            dim_e = dim_b + num_dims
-            if precomputed_embeddings is None:
-                embedding = run_umap(cluster_data,  num_dims,
-                                 n_neighbors=n_neighbors,
-                                 min_dist=min_dist)
+        embeddings = None
+        if precomputed_embeddings is None:
+            dim_b = 0
+            for ii, num_dims in enumerate(umap_dims): # umap dimension
+                dim_e = dim_b + num_dims
+                embedding = UMAP(n_components=num_dims, n_neighbors=n_neighbors, min_dist=min_dist).fit_transform(normalized)
                 all_embeddings[iter_i, :, dim_b:dim_e] = embedding
-            else:
-                embedding = precomputed_embeddings[iter_i, :, dim_b:dim_e]
-            dim_b = dim_e
-            cluster_results = cluster_range(embedding, cluster_sizes, method='ward', metric=metric)
+                dim_b = dim_e
+            embeddings = all_embeddings
+        else:
+            embeddings = precomputed_embeddings
+        for i, d in enumerate(umap_dims):
+            dists[i] = _spd.pdist(embeddings[iter_i, :, emb_scale == d], metric=metric)
+        if collapse:
+            dist = dists.mean(axis=0)
+            cluster_results = _sch.cut_tree(_sch.linkage(dist, method='ward'), cluster_sizes)
             for jj in range(cluster_results.shape[1]):
                 labels = cluster_results[:, jj]
                 num_clusters = cluster_sizes[jj]
-                logger.info('umap dimensions: %s, num cluster_sizes: %s' % (num_dims, num_clusters))
-                result[ii,jj] = cross_val_score(classifier, predict_data, labels, cv=5)
-                norm_result[ii,jj] = cross_val_score(classifier, predict_data, _np.random.permutation(labels), cv=5)
-            all_clusters[ii] = cluster_results.T
+                logger.info('num_clusters: %s' % num_clusters)
+                result[jj] = cross_val_score(classifier, predict_data, labels, cv=5)
+                norm_result[jj] = cross_val_score(classifier, predict_data, _np.random.permutation(labels), cv=5)
+            all_clusters[:]  = cluster_results.T
+        else:
+            for ii in range(dists.shape[0]):
+                dist = dists[ii]
+                cluster_results = _sch.cut_tree(_sch.linkage(dist, method='ward'), cluster_sizes)
+                for jj in range(cluster_results.shape[1]):
+                    labels = cluster_results[:, jj]
+                    num_clusters = cluster_sizes[jj]
+                    logger.info('umap_dims: %s, num_clusters: %s' % (umap_dims[ii], num_clusters))
+                    result[ii,jj] = cross_val_score(classifier, predict_data, labels, cv=5)
+                    norm_result[ii,jj] = cross_val_score(classifier, predict_data, _np.random.permutation(labels), cv=5)
+                all_clusters[ii] = cluster_results.T
+
         logger.info("END iteration %s" % iter_i)
 
         # write everything back for return
@@ -248,8 +278,11 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
         result.fill(0.0)
         norm_result.fill(0.0)
         all_clusters.fill(0)
+        dists.fill(0)
 
+    log1("finished call to umap_cluster_sweep")
     if close_grp:
+        logger.info("closing %s" % h5group.filename)
         h5group.close()
 
     return score, norm_score, seed, all_embeddings, clusters
