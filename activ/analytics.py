@@ -154,3 +154,15 @@ def nmf_bases_heatmap(data, col_labels, sort=True, ax=None,
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
             rotation_mode="anchor")
 
+def nmf_heatmap(data, labels, numclusters):
+    reordered = data[:,labels]
+    heatmap(reordered, list(range(1,numclusters+1)), labels+1,xlab='NMF Factors', ylab='Number of Clusters', title='NMF Weights Heatmap')
+
+def nmf_boxplot(data, labels):
+    ax = plt.gca()
+    ax.boxplot(data[:, labels], whis = [25, 75])
+    ax.set_xlabel('NMF Factors')
+    ax.set_ylabel('Weights across all Patients')
+    ax.set_title('NMF Weights Boxplot')
+    labels2 = labels+np.ones(len(labels), dtype=np.int)
+    ax.set_xticklabels(labels2)
