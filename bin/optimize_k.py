@@ -27,7 +27,7 @@ def optimize_k_error(data, mpicomm=None):
     minsamples = np.arange(5,55,5)
     n_splits = 10
     kf = KFold(n_splits=10)
-    indices = range(rank, nsplits, size)
+    indices = range(rank, n_splits, size)
     error_mat = np.zeros((10,10,10))
 
     for k, (train_index, test_index) in zip(indices, kf.split(data_oc)):
