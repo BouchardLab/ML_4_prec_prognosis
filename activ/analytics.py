@@ -166,3 +166,16 @@ def nmf_boxplot(data, labels):
     ax.set_title('NMF Weights Boxplot')
     labels2 = labels+np.ones(len(labels), dtype=np.int)
     ax.set_xticklabels(labels2)
+
+def outcomes_histogram(hist_name, oc_data, oc_features, indices, nrows=1, ncols=1, figsize=(6,6)):
+    fig, ax = plt.subplots(nrows,ncols,sharey=True,figsize=figsize)
+    ax = ax.flatten()
+    count = 0
+    for ii, ind in enumerate(indices):
+        data = oc_data[:,ind]
+        name = oc_features[ind]
+        ax[count].hist(data, color='black')
+        ax[count].set_title('{}'.format(name))
+        count += 1
+    plt.suptitle(hist_name, fontsize=14)
+
