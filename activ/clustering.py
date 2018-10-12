@@ -7,7 +7,7 @@ import logging as _logging
 from time import time as _time
 
 from sklearn.ensemble import RandomForestClassifier as RFC
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, cross_val_predict
 
 from umap import UMAP
 from .data_normalization import data_normalization
@@ -125,10 +125,10 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
     Use 5-fold stratified cross-validation for scoring.
 
     If h5group is supplied, the following datasets will be written to it:
-        score               - a dataset with shape (iterations, len(umap_dims), len(cluster_sizes), 5)
-                              that stores scores
-        norm_score          - a dataset with shape (iterations, len(umap_dims), len(cluster_sizes), 5)
-                              that stores random guess scores
+        score               - a dataset with shape (iterations, len(umap_dims), len(cluster_sizes), n)
+                              that stores predict scores
+        norm_score          - a dataset with shape (iterations, len(umap_dims), len(cluster_sizes), n)
+                              that stores random guess predict scores
         clusters            - the cluster assignments for each iteration and UMAP dimension
         seed                - the value used to seed the random number generator
         umap_dimensions     - the UMAP dimensions that were tested
@@ -174,11 +174,11 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
     n_samples = cluster_data.shape[0]
 
     if collapse:
-        output_shape = (n_iters, len(cluster_sizes), cv_folds)
+        output_shape = (n_iters, len(cluster_sizes), n)
         umap_params_shape = (n_iters, dims)
         clusters_shape = (n_iters, len(cluster_sizes), n_samples)
     else:
-        output_shape = (n_iters, len(umap_dims), len(cluster_sizes), cv_folds)
+        output_shape = (n_iters, len(umap_dims), len(cluster_sizes), n)
         umap_params_shape = (n_iters, len(umap_dims))
         clusters_shape = (n_iters, len(umap_dims), len(cluster_sizes), n_samples)
     embeddings_shape = (n_iters, n_samples, sum(umap_dims))
@@ -252,8 +252,8 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
                 labels = cluster_results[:, jj]
                 num_clusters = cluster_sizes[jj]
                 logger.info('num_clusters: %s' % num_clusters)
-                result[jj] = cross_val_score(classifier, predict_data, labels, cv=5)
-                norm_result[jj] = cross_val_score(classifier, predict_data, _np.random.permutation(labels), cv=5)
+                result[jj] = cross_val_predict(classifier, predict_data, labels, cv=5)
+                norm_result[jj] = cross_val_predict(classifier, predict_data, _np.random.permutation(labels), cv=5)
             all_clusters[:]  = cluster_results.T
         else:
             for ii in range(dists.shape[0]):
