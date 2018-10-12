@@ -263,8 +263,8 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
                     labels = cluster_results[:, jj]
                     num_clusters = cluster_sizes[jj]
                     logger.info('umap_dims: %s, num_clusters: %s' % (umap_dims[ii], num_clusters))
-                    result[ii,jj] = cross_val_score(classifier, predict_data, labels, cv=5)
-                    norm_result[ii,jj] = cross_val_score(classifier, predict_data, _np.random.permutation(labels), cv=5)
+                    result[ii,jj] = cross_val_predict(classifier, predict_data, labels, cv=5)
+                    norm_result[ii,jj] = cross_val_predict(classifier, predict_data, _np.random.permutation(labels), cv=5)
                 all_clusters[ii] = cluster_results.T
 
         logger.info("END iteration %s" % iter_i)
