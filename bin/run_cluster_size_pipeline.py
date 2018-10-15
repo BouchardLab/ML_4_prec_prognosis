@@ -53,6 +53,7 @@ try:
 except ImportError:
     rank = 0
     nranks = 1
+    print("coulnd't import mpi4py")
     comm = None
 
 
