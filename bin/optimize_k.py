@@ -49,7 +49,9 @@ for cv, (train_index, test_index) in zip(indices, kf.split(data_oc)):
             error_mat[ii,jj,cv] = error
             k_mat[ii,jj,cv] = k
 
-f = h5py.File('optimize_k_mat.h5', 'w', driver="mpio", comm=MPI.COMM_WORLD)
+f = h5py.File('optimize_k_mat_{}_{}.h5'.format(args.eps[0],args.minsamples[0]), 'w', driver="mpio", comm=MPI.COMM_WORLD)
 f.create_dataset('error', data=error_mat)
 f.create_dataset('k', data=k_mat)
+f.create_dataset('eps', data=args.eps)
+f.create_dataset('minsamples', data=args.minsamples)
 f.close()
