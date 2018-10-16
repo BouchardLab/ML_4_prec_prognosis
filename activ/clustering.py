@@ -175,7 +175,7 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
 
     if collapse:
         output_shape = (n_iters, len(cluster_sizes), n)
-        umap_params_shape = (n_iters, dims)
+        umap_params_shape = (n_iters, len(umap_dims))
         clusters_shape = (n_iters, len(cluster_sizes), n_samples)
     else:
         output_shape = (n_iters, len(umap_dims), len(cluster_sizes), n)
