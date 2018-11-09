@@ -25,8 +25,7 @@ parser.add_argument("-s", "--self_predict", help="predict clusters with dataset 
 parser.add_argument("-b", "--biomarkers", help="form clusters using biomarkers. use outcomes by default", action='store_true', default=False)
 parser.add_argument("-m", "--metric", help="the distance metric to compute clusters with", default="mahalanobis")
 parser.add_argument("-i", "--iters", type=int, help="the number of iterations to run", default=50)
-parser.add_argument("-u", "--umap_dims", type=int_list, help="a comma-separated list of the UMAP dimensions",
-                    default=list(range(2, 11)))
+parser.add_argument("-u", "--umap_dims", type=int_list, help="a comma-separated list of the UMAP dimensions")
 parser.add_argument("-c", "--cluster_size", type=int_list, help="a comma-separated list of the cluster sizes",
                     default=list(range(2, 15)))
 parser.add_argument("-e", "--embeddings", type=str, help="the path to the file to use embeddings from", default=None)
