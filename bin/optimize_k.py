@@ -38,7 +38,7 @@ rank = comm.Get_rank()
 size = comm.Get_size()
 
 data = load_data()
-data_oc = data_normalization.data_normalization(data.outcomes, 'positive')
+data_bm = data_normalization.data_normalization(data.biomarkers, 'positive')
 
 kf = KFold(n_splits=args.kfold)
 indices = range(rank, args.kfold, size)
@@ -46,6 +46,7 @@ indices = range(rank, args.kfold, size)
 error_mat = np.zeros((len(args.eps), len(args.minsamples), args.kfold))
 k_mat = np.zeros((len(args.eps), len(args.minsamples), args.kfold))
 
+data_oc = data_bm
 for cv, (train_index, test_index) in zip(indices, kf.split(data_oc)):
     train, test = data_oc[train_index], data_oc[test_index]
     train_oc = train
@@ -62,7 +63,7 @@ for cv, (train_index, test_index) in zip(indices, kf.split(data_oc)):
             error_mat[ii,jj,cv] = error
             k_mat[ii,jj,cv] = k
 
-f = h5py.File('optimize_k_mat_{}_{}.h5'.format(args.eps[0],args.minsamples[0]), 'w', driver="mpio", comm=MPI.COMM_WORLD)
+f = h5py.File('optimize_k_mat_bm.h5', 'w', driver="mpio", comm=MPI.COMM_WORLD)
 f.create_dataset('error', data=error_mat)
 f.create_dataset('k', data=k_mat)
 f.create_dataset('eps', data=args.eps)
