@@ -151,7 +151,7 @@ def nmf_bases_heatmap(data, col_labels, sort=True, ax=None,
         ax.set_title(title, fontsize=48)
 
     # Rotate the tick labels and set their alignment.
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+    plt.setp(ax.get_xticklabels(), rotation=90, ha="right",
             rotation_mode="anchor")
 
 def nmf_heatmap(data, labels, numclusters):
