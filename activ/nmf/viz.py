@@ -1,7 +1,9 @@
 import seaborn as sns
+import itertools as it
 import numpy as np
 import pandas as pd
 import scipy.cluster.hierarchy as sch
+import matplotlib.patches as mpatches
 
 def get_comb(order):
     """Return a linkage matrix that will order labels in the order in which they are given"""
@@ -19,7 +21,9 @@ def get_labels(column):
     uniq = np.unique(column)
     colors = sns.hls_palette(len(uniq))
     lut = dict(zip(uniq, colors))
-    return pd.Series([lut[v] for v in column])
+    labels = pd.Series([lut[v] for v in column])
+    patches = [mpatches.Patch(color=c, label=l) for l, c in lut.items()]
+    return labels, patches
 
 
 def get_sig_total_lev(nmf_bases, frac=0.5):
@@ -34,6 +38,11 @@ def get_sig_total_lev(nmf_bases, frac=0.5):
 
 
 def get_sig_indiv_lev(nmf_bases, frac=0.250):
+    indices = get_sig_variables(nmf_bases, frac=frac)
+    return np.unique(list(it.chain.from_iterable(indices)))
+
+
+def get_sig_variables(nmf_bases, frac=0.250):
     indices = list()
     for b in range(nmf_bases.shape[0]):
         basis = nmf_bases[b]
@@ -41,8 +50,8 @@ def get_sig_indiv_lev(nmf_bases, frac=0.250):
         cumsum = np.cumsum(basis[order])
         cumsum = cumsum/cumsum[-1]
         idx = np.where(cumsum > frac)[0][0]
-        indices.extend(order[:idx])
-    return np.unique(indices)
+        indices.append(order[:idx])
+    return indices
 
 
 def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
@@ -151,7 +160,8 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
     return im, row_order, col_order
 
 
-def weights_clustermap(data, row_linkage=None, col_linkage=None, cmap='binary', **cm_kwargs):
+def weights_clustermap(data, row_linkage=None, col_linkage=None, cmap='binary',
+                       row_labels=None, legend_title="", **cm_kwargs):
     if row_linkage is None:
         row_linkage = sch.linkage(data, method='ward')
     if col_linkage is None:
@@ -161,10 +171,20 @@ def weights_clustermap(data, row_linkage=None, col_linkage=None, cmap='binary', 
         col_linkage=col_linkage,
         cmap=cmap,
     )
+    label_legend = None
+    kwargs['row_colors'] = list()
+    if row_labels is not None:
+        labels, label_legend = get_labels(row_labels)
+        kwargs['row_colors'].append(labels)
+
     if cm_kwargs is not None:
         kwargs.update(cm_kwargs)
     cg = sns.clustermap(data, **kwargs)
+    if label_legend is not None:
+        l2 = cg.ax_col_dendrogram.legend(loc='best', bbox_to_anchor=(0.0,1.0), handles=label_legend, frameon=True)
+        l2.set_title(legend_title, prop={'size':12})
     return cg, row_linkage, col_linkage
+
 
 def nmfplot(weights, bases, hm_kwargs=None, cm_kwargs=None, indiv_lev_frac=None, total_lev_frac=None):
     sig_bases = None
