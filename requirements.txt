@@ -2,3 +2,5 @@ scikit-learn
 numpy
 scipy
 h5py
+umap-learn
+deepdish
