@@ -88,7 +88,7 @@ logger.setLevel(log_level)
 kwargs['logger'] = logger
 
 if rank == 0:
-    sys.stderr.write("%d ranks after setting up logger\n" % comm.Get_size())
+    sys.stderr.write("%d ranks after setting up logger\n" % nranks)
 
 data = None         # source of data for building clusters
 pdata = None        # source of data for predicting cluster labels
