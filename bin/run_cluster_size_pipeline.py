@@ -65,7 +65,7 @@ handler = None
 logfmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
 if rank == 0:
-    sys.stderr.write("%d ranks before setting up logger\n" % comm.Get_size())
+    sys.stderr.write("%d ranks before setting up logger\n" % nranks)
 if nranks > 1:
     from activ.mpitools import MPILogHandler
     logger_name = logger_name + "-%d" % rank
