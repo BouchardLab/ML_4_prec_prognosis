@@ -260,7 +260,7 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
         else:
             for ii in range(dists.shape[0]):
                 dist = dists[ii]
-                if umap_embedding=None:
+                if umap_embedding is None:
                     dist = normalized
                 cluster_results = _sch.cut_tree(_sch.linkage(dist, method='ward'), cluster_sizes)
                 for jj in range(cluster_results.shape[1]):
