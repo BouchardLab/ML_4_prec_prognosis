@@ -99,7 +99,7 @@ class UmapClusteringResults(object):
 
 def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='mahalanobis',
                        predict_data=None, h5group=None, classifier=RFC(100),
-                       precomputed_embeddings = None, single_dim=False, collapse=False,
+                       precomputed_embeddings=None, umap_embedding=None, single_dim=False, collapse=False,
                        umap_args=None, cv_folds=5, mpicomm=None,
                        seed=None, logger=None):
     """
@@ -119,6 +119,7 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
         seed                        : the seed to use for random number generation. default is to use
                                       time
         precomputed_embeddings      : UMAP embeddings that have already been computed
+        umap_embedding              : turn off UMAP embedding
         single_dim                  : use single UMAP dimension
         collapse                    : use the mean distance matrix across UMAP embeddings for clustering.
                                       Note: This will change the shape of outputs
@@ -259,6 +260,8 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
         else:
             for ii in range(dists.shape[0]):
                 dist = dists[ii]
+                if umap_embedding=None:
+                    dist = normalized
                 cluster_results = _sch.cut_tree(_sch.linkage(dist, method='ward'), cluster_sizes)
                 for jj in range(cluster_results.shape[1]):
                     labels = cluster_results[:, jj]
