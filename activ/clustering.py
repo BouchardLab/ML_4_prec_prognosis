@@ -235,6 +235,8 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
     for iter_i in iterations:
         logger.info("BEGIN iteration %s" % iter_i)
         embeddings = None
+        if umap_embedding is None:
+            embeddings = normalized
         if precomputed_embeddings is None:
             dim_b = 0
             for ii, num_dims in enumerate(umap_dims): # umap dimension
@@ -260,8 +262,6 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
         else:
             for ii in range(dists.shape[0]):
                 dist = dists[ii]
-                if umap_embedding is None:
-                    dist = normalized
                 cluster_results = _sch.cut_tree(_sch.linkage(dist, method='ward'), cluster_sizes)
                 for jj in range(cluster_results.shape[1]):
                     labels = cluster_results[:, jj]
