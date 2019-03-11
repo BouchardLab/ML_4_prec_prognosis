@@ -238,7 +238,7 @@ def plot_clustering_results(input_file, plot_this, specific_plot_name=None):
     else:
         plot_title = tail.split('.')[0]
     save_name = plot_title + '_foc.pdf'
-
+    save_name = os.path.join('/Users/ahyeon/Desktop/activ misc/', save_name)
     if plot_this == 'foc':
         plt.errorbar(cluster_sizes, med, yerr=[med-lower,upper-med], color = 'red',fmt='-o', label='Fold over chance')
         plt.title("Fold over Chance vs Cluster sizes\n{}".format(plot_title), fontsize=20)
