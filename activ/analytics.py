@@ -241,20 +241,19 @@ def plot_clustering_results(input_file, plot_this, specific_plot_name=None):
     save_name = os.path.join('/Users/ahyeon/Desktop/activ misc/', save_name)
     if plot_this == 'foc':
         plt.errorbar(cluster_sizes, med, yerr=[med-lower,upper-med], color = 'red',fmt='-o', label='Fold over chance')
-        plt.title("Fold over Chance vs Cluster sizes\n{}".format(plot_title), fontsize=20)
+        plt.title(str(plot_title), fontsize=20)
         plt.xlabel("Cluster sizes", fontsize=20)
         plt.ylabel("Fold over chance", fontsize=20)
     elif plot_this == 'raw_and_chance':
         plt.errorbar(cluster_sizes, raw_med, yerr=[raw_med-raw_lower,raw_upper-raw_med], color='black',fmt='-o', label='Raw accuracy')
         plt.errorbar(cluster_sizes, norm_med, yerr=[norm_med-norm_lower, norm_upper-norm_med], color='grey',fmt='-o', label='Chance accuracy')
-        plt.title("Raw and Chance Accuracy vs Cluster sizes\n{}".format(plot_title), fontsize=20)
+        plt.title(str(plot_title), fontsize=20)
         plt.xlabel("Cluster sizes", fontsize=20)
         plt.ylabel("Raw and Chance Accuracy", fontsize=20)
         plt.legend()
     else:
         plt.plot(cluster_sizes, rel_iqr, '-o', color='black')
-        plt.title("Normalized IQR of Fold over Chance vs Cluster sizes\n{}".format(plot_title), fontsize=20)
+        plt.title(str(plot_title), fontsize=20)
         plt.xlabel("Cluster sizes", fontsize=20)
         plt.ylabel("Normalized IQR", fontsize=20)
-
     plt.savefig(save_name)
