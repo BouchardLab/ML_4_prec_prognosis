@@ -33,6 +33,7 @@ parser.add_argument("-C", "--collapse", help="collapse distance matrix (i.e. tak
 parser.add_argument("-l", "--log", type=str, help="the file to write log messages to [stdout]", default=None)
 parser.add_argument("-f", "--force", help="force rerunning i.e. overwrite output_h5", action='store_true', default=False)
 parser.add_argument("-q", "--quiet", help="make log messages quiet", action='store_true', default=False)
+parser.add_argument("-g", "--h5group", type=str, help="the h5 group that the data is saved under", default=None)
 
 if len(sys.argv) == 1:
     parser.print_help()
