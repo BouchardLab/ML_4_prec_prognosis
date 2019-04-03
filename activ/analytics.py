@@ -1,6 +1,9 @@
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.pyplot as plt
+import h5py
+import os
+import scipy
 
 def heatmap(data, row_labels, col_labels, ax=None,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
@@ -178,3 +181,138 @@ def outcomes_histogram(oc_data, oc_features, indices, nrows=1, ncols=1, figsize=
         ax[count].set_title('{}'.format(name))
         count += 1
 
+
+def conf_alliter(size, predicted, actual, iterations):
+    confalliter = []
+    for j in range(iterations):
+        conf = np.zeros((size,size))
+        labs = list(map(int, actual[j][size-2]))
+        preds = list(map(int, predicted[j][size-2]))
+        for l, p in zip(labs, preds):
+            conf[l,p] += 1
+        confalliter.append(conf)
+    return confalliter
+
+def accuracy(mat):
+    return mat.trace()/mat.sum()
+
+
+
+def plot_clustering_results(input_file, plot_this, specific_plot_name=None):
+    f = h5py.File(input_file, 'r')
+    predictions = np.squeeze(f['score'][:], axis=1)
+    norm_predictions = np.squeeze(f['norm_score'][:], axis=1)
+    cluster_sizes = f['cluster_sizes'][:]
+    labels = np.squeeze(f['clusters'][:], axis=1)
+    num_iter = predictions.shape[0]
+    num_clust = len(cluster_sizes)
+    fold_over_chance = np.zeros((num_clust, num_iter))
+    raw_acc = np.zeros((num_clust, num_iter))
+    normalized_acc = np.zeros((num_clust, num_iter))
+    for jj,c in enumerate(cluster_sizes):
+        all50mat = conf_alliter(c, predictions, labels, num_iter)
+        norm_all50mat = conf_alliter(c, norm_predictions, labels, num_iter)
+        acc = [accuracy(i) for i in all50mat]
+        norm_acc = [accuracy(i) for i in norm_all50mat]
+        foc = [float(x/y) for x, y in zip(acc, norm_acc)]
+        fold_over_chance[jj,:] = foc
+        raw_acc[jj,:] = acc
+        normalized_acc[jj,:] = norm_acc
+    plt.rcParams["figure.figsize"] = [10,10]
+    cmap = plt.get_cmap("tab10")
+    lower = np.asarray([np.percentile(fold_over_chance[i,:], 25) for i in range(num_clust)])
+    upper = np.asarray([np.percentile(fold_over_chance[i,:], 75) for i in range(num_clust)])
+    med = np.median(fold_over_chance, axis=1)
+    raw_med = np.median(raw_acc, axis=1)
+    raw_lower = [np.percentile(raw_acc[i,:], 25) for i in range(num_clust)]
+    raw_upper = [np.percentile(raw_acc[i,:], 75) for i in range(num_clust)]
+    norm_med = np.median(normalized_acc, axis=1)
+    norm_lower = [np.percentile(normalized_acc[i,:], 25) for i in range(num_clust)]
+    norm_upper = [np.percentile(normalized_acc[i,:], 75) for i in range(num_clust)]
+    yerr = upper-lower
+    rel_iqr = yerr/med
+
+    _, tail = os.path.split(input_file)
+    if specific_plot_name is not None:
+        plot_title = specific_plot_name
+    else:
+        plot_title = tail.split('.')[0]
+    save_name = plot_title + '_foc.pdf'
+    save_name = os.path.join('/Users/ahyeon/Desktop/activ misc/', save_name)
+    if plot_this == 'foc':
+        plt.errorbar(cluster_sizes, med, yerr=[med-lower,upper-med], color = 'red',fmt='-o', label='Fold over chance')
+        plt.title(str(plot_title), fontsize=20)
+        plt.xlabel("Cluster sizes", fontsize=20)
+        plt.ylabel("Fold over chance", fontsize=20)
+    elif plot_this == 'raw_and_chance':
+        plt.errorbar(cluster_sizes, raw_med, yerr=[raw_med-raw_lower,raw_upper-raw_med], color='black',fmt='-o', label='Raw accuracy')
+        plt.errorbar(cluster_sizes, norm_med, yerr=[norm_med-norm_lower, norm_upper-norm_med], color='grey',fmt='-o', label='Chance accuracy')
+        plt.title(str(plot_title), fontsize=20)
+        plt.xlabel("Cluster sizes", fontsize=20)
+        plt.ylabel("Raw and Chance Accuracy", fontsize=20)
+        plt.legend()
+    else:
+        plt.plot(cluster_sizes, rel_iqr, '-o', color='black')
+        plt.title(str(plot_title), fontsize=20)
+        plt.xlabel("Cluster sizes", fontsize=20)
+        plt.ylabel("Normalized IQR", fontsize=20)
+    plt.savefig(save_name)
+
+def plot_clustering_results_activ_data(group_name, plot_this, specific_plot_name=None):
+    with h5py.File('/Users/ahyeon/data/activ/activ_data.h5','r') as hf:
+        data = hf['umap_clustering/{}'.format(group_name)]
+        f = data
+        predictions = np.squeeze(f['score'][:], axis=1)
+        norm_predictions = np.squeeze(f['norm_score'][:], axis=1)
+        cluster_sizes = f['cluster_sizes'][:]
+        labels = np.squeeze(f['clusters'][:], axis=1)
+        num_iter = predictions.shape[0]
+        num_clust = len(cluster_sizes)
+        fold_over_chance = np.zeros((num_clust, num_iter))
+        raw_acc = np.zeros((num_clust, num_iter))
+        normalized_acc = np.zeros((num_clust, num_iter))
+        for jj,c in enumerate(cluster_sizes):
+            all50mat = conf_alliter(c, predictions, labels, num_iter)
+            norm_all50mat = conf_alliter(c, norm_predictions, labels, num_iter)
+            acc = [accuracy(i) for i in all50mat]
+            norm_acc = [accuracy(i) for i in norm_all50mat]
+            foc = [float(x/y) for x, y in zip(acc, norm_acc)]
+            fold_over_chance[jj,:] = foc
+            raw_acc[jj,:] = acc
+            normalized_acc[jj,:] = norm_acc
+        plt.rcParams["figure.figsize"] = [10,10]
+        cmap = plt.get_cmap("tab10")
+        lower = np.asarray([np.percentile(fold_over_chance[i,:], 25) for i in range(num_clust)])
+        upper = np.asarray([np.percentile(fold_over_chance[i,:], 75) for i in range(num_clust)])
+        med = np.median(fold_over_chance, axis=1)
+        raw_med = np.median(raw_acc, axis=1)
+        raw_lower = [np.percentile(raw_acc[i,:], 25) for i in range(num_clust)]
+        raw_upper = [np.percentile(raw_acc[i,:], 75) for i in range(num_clust)]
+        norm_med = np.median(normalized_acc, axis=1)
+        norm_lower = [np.percentile(normalized_acc[i,:], 25) for i in range(num_clust)]
+        norm_upper = [np.percentile(normalized_acc[i,:], 75) for i in range(num_clust)]
+        yerr = upper-lower
+        rel_iqr = yerr/med
+
+        if specific_plot_name is not None:
+            plot_title = specific_plot_name
+        else:
+            plot_title = group_name
+
+        if plot_this == 'foc':
+            plt.errorbar(cluster_sizes, med, yerr=[med-lower,upper-med], color = 'red',fmt='-o', label='Fold over chance')
+            plt.title(str(plot_title), fontsize=20)
+            plt.xlabel("Cluster sizes", fontsize=20)
+            plt.ylabel("Fold over chance", fontsize=20)
+        elif plot_this == 'raw_and_chance':
+            plt.errorbar(cluster_sizes, raw_med, yerr=[raw_med-raw_lower,raw_upper-raw_med], color='black',fmt='-o', label='Raw accuracy')
+            plt.errorbar(cluster_sizes, norm_med, yerr=[norm_med-norm_lower, norm_upper-norm_med], color='grey',fmt='-o', label='Chance accuracy')
+            plt.title(str(plot_title), fontsize=20)
+            plt.xlabel("Cluster sizes", fontsize=20)
+            plt.ylabel("Raw and Chance Accuracy", fontsize=20)
+            plt.legend()
+        else:
+            plt.plot(cluster_sizes, rel_iqr, '-o', color='black')
+            plt.title(str(plot_title), fontsize=20)
+            plt.xlabel("Cluster sizes", fontsize=20)
+            plt.ylabel("Normalized IQR", fontsize=20)
