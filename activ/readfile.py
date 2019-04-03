@@ -248,7 +248,7 @@ def load_data(uoinmf=False, dead=False):
         return UoINMFTrackTBIFile(path)
     elif dead:
         path = resource_filename(__name__, 'data_dead.h5')
-        return UoINMFTrackTBIFile(path)
+        return TrackTBIFile(path)
     else:
         path = resource_filename(__name__, 'data.h5')
         return TrackTBIFile(path)
