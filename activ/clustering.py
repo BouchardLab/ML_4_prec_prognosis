@@ -97,7 +97,7 @@ class UmapClusteringResults(object):
         _plt.savefig(dest)
         return im, cbar
 
-def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='mahalanobis',
+def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, metric='mahalanobis',
                        predict_data=None, h5group=None, classifier=RFC(100),
                        precomputed_embeddings=None, umap_embedding=None, single_dim=False, collapse=False,
                        umap_args=None, cv_folds=5, mpicomm=None,
