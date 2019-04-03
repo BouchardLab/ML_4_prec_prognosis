@@ -233,7 +233,7 @@ def get_parser(usage="%(prog)s [options] filepath",
     return parser
 
 
-def load_data(uoinmf=False):
+def load_data(uoinmf=False, dead=False):
     """
     Load a TRACK-TBI dataset.
 
@@ -241,9 +241,13 @@ def load_data(uoinmf=False):
 
     Args:
         uoinmf  : True to load the UoINMF decomposed data
+        dead    : True to load dead patients imputed data
     """
     if uoinmf:
         path = resource_filename(__name__, 'data_uoinmf.h5')
+        return UoINMFTrackTBIFile(path)
+    elif dead:
+        path = resource_filename(__name__, 'data_dead.h5')
         return UoINMFTrackTBIFile(path)
     else:
         path = resource_filename(__name__, 'data.h5')
