@@ -97,6 +97,67 @@ class UmapClusteringResults(object):
         _plt.savefig(dest)
         return im, cbar
 
+
+# completely rewrite this to do what Kris says
+#   for nb in n_bootstraps
+#       distmat = median([pdist(UMAP().fit_transform()) for nu in n_umap_iters])
+#       dendro = linkage(distmat)
+#       for c in n_clusters:
+#           labels = cut_tree(dendro)
+#           pred = cross_val_predict(classifier, predict_data, labels, cv=cv_folds)
+#           score = accuracy_score(label, pred)
+
+
+def check_random_state(random_state):
+    if random_state is None:
+        rand = np.random
+    elif isinstance(random_state, (np.int32, np.int64, np.int16, np.int8, int)):
+        rand = np.random.RandomState(random_state)
+    else:
+        rand = random_state
+    return rand
+
+def compute_umap_distance(X, n_components, metric='euclidean', n_iters=30, agg='median', umap_kwargs=dict(), random_state=None):
+    if agg  not in ('mean', 'median'):
+        raise ValueError("Unrecognized argument for agg: '%s'" % agg)
+    n = X.shape[0]
+    samples = np.zeros(((n*(n-1))/2, n_iters))
+    umap = UMAP(n_components=n_components, metric=metric, random_state=random_state, **umap_kwargs)
+    for i in range(n_iters):
+        samples[:, i] = pdist(umap.fit_transform(X), metric=metric)
+    ret = None
+    if agg == 'median':
+        ret = np.median(samples, axis=1)
+    elif agg == 'mean':
+        ret = np.mean(samples, axis=1)
+    return ret
+
+def bootstrapped_umap_clustering(X, y, n_bootstraps, cluster_sizes, metric='euclidean',
+                                 n_umap_iters=30, umap_dims=2, random_state=None, umap_kwargs=dict()):
+
+    """
+    Returns:
+        labels - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            the labels computed for each sample of each boostrap replicate
+
+        preds - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            the predictions for each sample of each boostrap replicate
+    """
+    rand = check_random_state(random_state)
+    n = y.shape[0]
+    it = range(n_bootstraps)
+    labels = np.zeros((n_bootstraps, n, len(cluster_sizes)))
+    preds = np.zeros(labels.shape)
+    for i in it:
+        indices = rand.randint(n, size=n)
+        y_p = y[indices]
+        X_p = X[indices]
+        dist = compute_umap_distance(y_p, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs)
+        labels[i] = cut_tree(linkage(dist, method='ward'), n_clusters=cluster_sizes)
+        for nclust in range(labels.shape[1]):
+            preds[i, :, nclust] = cross_val_pred(classifier, X_p, labels[i, :, nclust])
+    return labels, preds
+
 def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, metric='mahalanobis',
                        predict_data=None, h5group=None, classifier=RFC(100),
                        precomputed_embeddings=None, single_dim=False, collapse=False,
