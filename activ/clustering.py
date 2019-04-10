@@ -115,7 +115,7 @@ class UmapClusteringResults(object):
 
 def check_random_state(random_state):
     if random_state is None:
-        rand = np.random
+        rand = np.random.RandomState()
     elif isinstance(random_state, (np.int32, np.int64, np.int16, np.int8, int)):
         rand = np.random.RandomState(random_state)
     else:
@@ -146,9 +146,14 @@ def compute_umap_distance(X, n_components, metric='euclidean', n_iters=30, agg='
         ret = np.mean(samples, axis=1)
     return ret
 
+
+def log(logger, msg):
+    if logger is not None:
+        logger.info(msg)
+
 def bootstrapped_umap_clustering(X, y, n_bootstraps, cluster_sizes, metric='euclidean',
-                                 classifier=RFC(100), cv=5,
-                                 n_umap_iters=30, umap_dims=2, random_state=None, umap_kwargs=dict()):
+                                 classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
+                                 random_state=None, umap_kwargs=dict(), logger=None):
 
     """
     Returns:
@@ -168,22 +173,26 @@ def bootstrapped_umap_clustering(X, y, n_bootstraps, cluster_sizes, metric='eucl
     n = y.shape[0]
     it = range(n_bootstraps)
 
+    if classifier is None:
+        classifier = RFC(100, random_state=rand)
+
     true_labels = np.zeros((n_bootstraps, n, len(cluster_sizes)), dtype=np.int32)
     rand_labels = true_labels.copy()
     preds = np.zeros(true_labels.shape, dtype=np.float64)
     chances = preds.copy()
     for i in it:
-        print("bootstrap", i)
+        log(logger, 'beginning bootstrap %d' % i)
         indices = rand.randint(n, size=n)
         y_p = y[indices]
         X_p = X[indices]
+        log(logger, 'computing UMAP distance matrix')
         dist = compute_umap_distance(y_p, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs, n_iters=n_umap_iters)
         true_labels[i] = cut_tree(linkage(dist, method='ward'), n_clusters=cluster_sizes)
         for nclust in range(len(cluster_sizes)):
-            print(cluster_sizes[nclust], "clusters")
+            log(logger, 'predicting labels from %d clusters' % cluster_sizes[nclust])
             rand_labels[i, :, nclust] = rand.permutation(true_labels[i, :, nclust])
-            preds[i, :, nclust] = cross_val_predict(classifier, X_p, true_labels[i, :, nclust], cv=cv)
-            chances[i, :, nclust] = cross_val_predict(classifier, X_p, rand_labels[i, :, nclust], cv=cv)
+            preds[i, :, nclust] = cross_val_predict(classifier, X_p, true_labels[i, :, nclust], cv=cv, n_jobs=1)
+            chances[i, :, nclust] = cross_val_predict(classifier, X_p, rand_labels[i, :, nclust], cv=cv, n_jobs=1)
     return true_labels, preds, rand_labels, chances
 
 def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, metric='mahalanobis',
