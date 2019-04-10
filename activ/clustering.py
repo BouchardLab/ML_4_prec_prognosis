@@ -6,6 +6,11 @@ import scipy.cluster.hierarchy as _sch
 import logging as _logging
 from time import time as _time
 
+from scipy.spatial.distance import pdist, squareform
+from scipy.cluster.hierarchy import linkage, cut_tree
+
+import numpy as np
+
 from sklearn.ensemble import RandomForestClassifier as RFC
 from sklearn.model_selection import cross_val_score, cross_val_predict
 
@@ -117,14 +122,23 @@ def check_random_state(random_state):
         rand = random_state
     return rand
 
+
+def get_rank_size(comm):
+    if comm is None:
+        return 1, 1
+    else:
+        return comm.Get_rank(), comm.Get_size()
+
 def compute_umap_distance(X, n_components, metric='euclidean', n_iters=30, agg='median', umap_kwargs=dict(), random_state=None):
     if agg  not in ('mean', 'median'):
         raise ValueError("Unrecognized argument for agg: '%s'" % agg)
+    rand = check_random_state(random_state)
     n = X.shape[0]
-    samples = np.zeros(((n*(n-1))/2, n_iters))
-    umap = UMAP(n_components=n_components, metric=metric, random_state=random_state, **umap_kwargs)
+    samples = np.zeros(((n*(n-1))//2, n_iters))
+    dist = squareform(pdist(X, metric=metric))
+    umap = UMAP(n_components=n_components, metric='precomputed', random_state=rand, **umap_kwargs)
     for i in range(n_iters):
-        samples[:, i] = pdist(umap.fit_transform(X), metric=metric)
+        samples[:, i] = pdist(umap.fit_transform(dist), metric=metric)
     ret = None
     if agg == 'median':
         ret = np.median(samples, axis=1)
@@ -133,6 +147,7 @@ def compute_umap_distance(X, n_components, metric='euclidean', n_iters=30, agg='
     return ret
 
 def bootstrapped_umap_clustering(X, y, n_bootstraps, cluster_sizes, metric='euclidean',
+                                 classifier=RFC(100), cv=5,
                                  n_umap_iters=30, umap_dims=2, random_state=None, umap_kwargs=dict()):
 
     """
@@ -142,21 +157,34 @@ def bootstrapped_umap_clustering(X, y, n_bootstraps, cluster_sizes, metric='eucl
 
         preds - shape (n_bootstraps, n_samples, n_cluster_sizes)
             the predictions for each sample of each boostrap replicate
+
+        rand_labels - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            randomized labels computed for each sample of each boostrap replicate
+
+        chances - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            predictions of randomized labels for each sample of each boostrap replicate
     """
     rand = check_random_state(random_state)
     n = y.shape[0]
     it = range(n_bootstraps)
-    labels = np.zeros((n_bootstraps, n, len(cluster_sizes)))
-    preds = np.zeros(labels.shape)
+
+    true_labels = np.zeros((n_bootstraps, n, len(cluster_sizes)), dtype=np.int32)
+    rand_labels = true_labels.copy()
+    preds = np.zeros(true_labels.shape, dtype=np.float64)
+    chances = preds.copy()
     for i in it:
+        print("bootstrap", i)
         indices = rand.randint(n, size=n)
         y_p = y[indices]
         X_p = X[indices]
-        dist = compute_umap_distance(y_p, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs)
-        labels[i] = cut_tree(linkage(dist, method='ward'), n_clusters=cluster_sizes)
-        for nclust in range(labels.shape[1]):
-            preds[i, :, nclust] = cross_val_pred(classifier, X_p, labels[i, :, nclust])
-    return labels, preds
+        dist = compute_umap_distance(y_p, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs, n_iters=n_umap_iters)
+        true_labels[i] = cut_tree(linkage(dist, method='ward'), n_clusters=cluster_sizes)
+        for nclust in range(len(cluster_sizes)):
+            print(cluster_sizes[nclust], "clusters")
+            rand_labels[i, :, nclust] = rand.permutation(true_labels[i, :, nclust])
+            preds[i, :, nclust] = cross_val_predict(classifier, X_p, true_labels[i, :, nclust], cv=cv)
+            chances[i, :, nclust] = cross_val_predict(classifier, X_p, rand_labels[i, :, nclust], cv=cv)
+    return true_labels, preds, rand_labels, chances
 
 def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, metric='mahalanobis',
                        predict_data=None, h5group=None, classifier=RFC(100),
