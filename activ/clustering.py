@@ -157,6 +157,29 @@ def bootstrapped_umap_clustering(X, y, n_bootstraps, cluster_sizes, metric='eucl
 
     """
     Returns:
+
+        X - shape (n_samples, n_features)
+            the predictor matrix to predict cluster labels with
+
+        y - shape (n_samples, n_response_features)
+            the response matrix to build cluster labels from
+
+        n_bootstraps - int
+            the number of bootstraps to do
+
+        classifier - object, default : RandomForestClassifier(n_estimators=100).
+            the classifier to predict cluster labels with.
+
+        cv - int or cross-validation generator, default: 5
+            the number of CV folds or the cross-validation generator to use for
+            predicting labels. If an integer is supplied, StratifiedKFold will be done
+
+        n_umap_iters - int
+            the number of iterations to use for calculating the UMAP
+
+        random_state - int or RandomState
+            the seed or RandomState to use
+
         labels - shape (n_bootstraps, n_samples, n_cluster_sizes)
             the labels computed for each sample of each boostrap replicate
 
