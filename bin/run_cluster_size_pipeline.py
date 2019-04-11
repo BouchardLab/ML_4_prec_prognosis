@@ -25,8 +25,7 @@ parser.add_argument("-s", "--self_predict", help="predict clusters with dataset 
 parser.add_argument("-b", "--biomarkers", help="form clusters using biomarkers. use outcomes by default", action='store_true', default=False)
 parser.add_argument("-m", "--metric", help="the distance metric to compute clusters with", default="mahalanobis")
 parser.add_argument("-i", "--iters", type=int, help="the number of iterations to run", default=50)
-parser.add_argument("-u", "--umap_dims", type=int_list, help="a comma-separated list of the UMAP dimensions",
-                    default=list(range(2, 11)))
+parser.add_argument("-u", "--umap_dims", type=int_list, help="a comma-separated list of the UMAP dimensions")
 parser.add_argument("-c", "--cluster_size", type=int_list, help="a comma-separated list of the cluster sizes",
                     default=list(range(2, 15)))
 parser.add_argument("-e", "--embeddings", type=str, help="the path to the file to use embeddings from", default=None)
@@ -34,6 +33,7 @@ parser.add_argument("-C", "--collapse", help="collapse distance matrix (i.e. tak
 parser.add_argument("-l", "--log", type=str, help="the file to write log messages to [stdout]", default=None)
 parser.add_argument("-f", "--force", help="force rerunning i.e. overwrite output_h5", action='store_true', default=False)
 parser.add_argument("-q", "--quiet", help="make log messages quiet", action='store_true', default=False)
+parser.add_argument("-g", "--h5group", type=str, help="the h5 group that the data is saved under", default=None)
 
 if len(sys.argv) == 1:
     parser.print_help()
@@ -53,6 +53,7 @@ try:
 except ImportError:
     rank = 0
     nranks = 1
+    print("coulnd't import mpi4py")
     comm = None
 
 
@@ -65,7 +66,7 @@ handler = None
 logfmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
 if rank == 0:
-    sys.stderr.write("%d ranks before setting up logger\n" % comm.Get_size())
+    sys.stderr.write("%d ranks before setting up logger\n" % nranks)
 if nranks > 1:
     from activ.mpitools import MPILogHandler
     logger_name = logger_name + "-%d" % rank
@@ -88,7 +89,7 @@ logger.setLevel(log_level)
 kwargs['logger'] = logger
 
 if rank == 0:
-    sys.stderr.write("%d ranks after setting up logger\n" % comm.Get_size())
+    sys.stderr.write("%d ranks after setting up logger\n" % nranks)
 
 data = None         # source of data for building clusters
 pdata = None        # source of data for predicting cluster labels

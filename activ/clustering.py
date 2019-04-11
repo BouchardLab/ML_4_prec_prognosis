@@ -6,8 +6,13 @@ import scipy.cluster.hierarchy as _sch
 import logging as _logging
 from time import time as _time
 
+from scipy.spatial.distance import pdist, squareform
+from scipy.cluster.hierarchy import linkage, cut_tree
+
+import numpy as np
+
 from sklearn.ensemble import RandomForestClassifier as RFC
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, cross_val_predict
 
 from umap import UMAP
 from .data_normalization import data_normalization
@@ -97,9 +102,102 @@ class UmapClusteringResults(object):
         _plt.savefig(dest)
         return im, cbar
 
-def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='mahalanobis',
+
+# completely rewrite this to do what Kris says
+#   for nb in n_bootstraps
+#       distmat = median([pdist(UMAP().fit_transform()) for nu in n_umap_iters])
+#       dendro = linkage(distmat)
+#       for c in n_clusters:
+#           labels = cut_tree(dendro)
+#           pred = cross_val_predict(classifier, predict_data, labels, cv=cv_folds)
+#           score = accuracy_score(label, pred)
+
+
+def check_random_state(random_state):
+    if random_state is None:
+        rand = np.random.RandomState()
+    elif isinstance(random_state, (np.int32, np.int64, np.int16, np.int8, int)):
+        rand = np.random.RandomState(random_state)
+    else:
+        rand = random_state
+    return rand
+
+
+def get_rank_size(comm):
+    if comm is None:
+        return 1, 1
+    else:
+        return comm.Get_rank(), comm.Get_size()
+
+def compute_umap_distance(X, n_components, metric='euclidean', n_iters=30, agg='median', umap_kwargs=dict(), random_state=None):
+    if agg  not in ('mean', 'median'):
+        raise ValueError("Unrecognized argument for agg: '%s'" % agg)
+    rand = check_random_state(random_state)
+    n = X.shape[0]
+    samples = np.zeros(((n*(n-1))//2, n_iters))
+    dist = squareform(pdist(X, metric=metric))
+    umap = UMAP(n_components=n_components, metric='precomputed', random_state=rand, **umap_kwargs)
+    for i in range(n_iters):
+        samples[:, i] = pdist(umap.fit_transform(dist), metric=metric)
+    ret = None
+    if agg == 'median':
+        ret = np.median(samples, axis=1)
+    elif agg == 'mean':
+        ret = np.mean(samples, axis=1)
+    return ret
+
+
+def log(logger, msg):
+    if logger is not None:
+        logger.info(msg)
+
+def bootstrapped_umap_clustering(X, y, n_bootstraps, cluster_sizes, metric='euclidean',
+                                 classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
+                                 random_state=None, umap_kwargs=dict(), logger=None):
+
+    """
+    Returns:
+        labels - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            the labels computed for each sample of each boostrap replicate
+
+        preds - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            the predictions for each sample of each boostrap replicate
+
+        rand_labels - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            randomized labels computed for each sample of each boostrap replicate
+
+        chances - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            predictions of randomized labels for each sample of each boostrap replicate
+    """
+    rand = check_random_state(random_state)
+    n = y.shape[0]
+    it = range(n_bootstraps)
+
+    if classifier is None:
+        classifier = RFC(100, random_state=rand)
+
+    true_labels = np.zeros((n_bootstraps, n, len(cluster_sizes)), dtype=np.int32)
+    rand_labels = true_labels.copy()
+    preds = np.zeros(true_labels.shape, dtype=np.float64)
+    chances = preds.copy()
+    for i in it:
+        log(logger, 'beginning bootstrap %d' % i)
+        indices = rand.randint(n, size=n)
+        y_p = y[indices]
+        X_p = X[indices]
+        log(logger, 'computing UMAP distance matrix')
+        dist = compute_umap_distance(y_p, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs, n_iters=n_umap_iters)
+        true_labels[i] = cut_tree(linkage(dist, method='ward'), n_clusters=cluster_sizes)
+        for nclust in range(len(cluster_sizes)):
+            log(logger, 'predicting labels from %d clusters' % cluster_sizes[nclust])
+            rand_labels[i, :, nclust] = rand.permutation(true_labels[i, :, nclust])
+            preds[i, :, nclust] = cross_val_predict(classifier, X_p, true_labels[i, :, nclust], cv=cv, n_jobs=1)
+            chances[i, :, nclust] = cross_val_predict(classifier, X_p, rand_labels[i, :, nclust], cv=cv, n_jobs=1)
+    return true_labels, preds, rand_labels, chances
+
+def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, metric='mahalanobis',
                        predict_data=None, h5group=None, classifier=RFC(100),
-                       precomputed_embeddings = None, collapse=False,
+                       precomputed_embeddings=None, single_dim=False, collapse=False,
                        umap_args=None, cv_folds=5, mpicomm=None,
                        seed=None, logger=None):
     """
@@ -119,16 +217,17 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
         seed                        : the seed to use for random number generation. default is to use
                                       time
         precomputed_embeddings      : UMAP embeddings that have already been computed
+        single_dim                  : use single UMAP dimension
         collapse                    : use the mean distance matrix across UMAP embeddings for clustering.
                                       Note: This will change the shape of outputs
 
     Use 5-fold stratified cross-validation for scoring.
 
     If h5group is supplied, the following datasets will be written to it:
-        score               - a dataset with shape (iterations, len(umap_dims), len(cluster_sizes), 5)
-                              that stores scores
-        norm_score          - a dataset with shape (iterations, len(umap_dims), len(cluster_sizes), 5)
-                              that stores random guess scores
+        score               - a dataset with shape (iterations, len(umap_dims), len(cluster_sizes), n)
+                              that stores predict scores
+        norm_score          - a dataset with shape (iterations, len(umap_dims), len(cluster_sizes), n)
+                              that stores random guess predict scores
         clusters            - the cluster assignments for each iteration and UMAP dimension
         seed                - the value used to seed the random number generator
         umap_dimensions     - the UMAP dimensions that were tested
@@ -174,11 +273,11 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
     n_samples = cluster_data.shape[0]
 
     if collapse:
-        output_shape = (n_iters, len(cluster_sizes), cv_folds)
-        umap_params_shape = (n_iters, dims)
+        output_shape = (n_iters, len(cluster_sizes), n)
+        umap_params_shape = (n_iters, len(umap_dims))
         clusters_shape = (n_iters, len(cluster_sizes), n_samples)
     else:
-        output_shape = (n_iters, len(umap_dims), len(cluster_sizes), cv_folds)
+        output_shape = (n_iters, len(umap_dims), len(cluster_sizes), n)
         umap_params_shape = (n_iters, len(umap_dims))
         clusters_shape = (n_iters, len(umap_dims), len(cluster_sizes), n_samples)
     embeddings_shape = (n_iters, n_samples, sum(umap_dims))
@@ -252,8 +351,8 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
                 labels = cluster_results[:, jj]
                 num_clusters = cluster_sizes[jj]
                 logger.info('num_clusters: %s' % num_clusters)
-                result[jj] = cross_val_score(classifier, predict_data, labels, cv=5)
-                norm_result[jj] = cross_val_score(classifier, predict_data, _np.random.permutation(labels), cv=5)
+                result[jj] = cross_val_predict(classifier, predict_data, labels, cv=5)
+                norm_result[jj] = cross_val_predict(classifier, predict_data, _np.random.permutation(labels), cv=5)
             all_clusters[:]  = cluster_results.T
         else:
             for ii in range(dists.shape[0]):
@@ -263,8 +362,8 @@ def umap_cluster_sweep(n_iters, cluster_data, umap_dims, cluster_sizes, metric='
                     labels = cluster_results[:, jj]
                     num_clusters = cluster_sizes[jj]
                     logger.info('umap_dims: %s, num_clusters: %s' % (umap_dims[ii], num_clusters))
-                    result[ii,jj] = cross_val_score(classifier, predict_data, labels, cv=5)
-                    norm_result[ii,jj] = cross_val_score(classifier, predict_data, _np.random.permutation(labels), cv=5)
+                    result[ii,jj] = cross_val_predict(classifier, predict_data, labels, cv=5)
+                    norm_result[ii,jj] = cross_val_predict(classifier, predict_data, _np.random.permutation(labels), cv=5)
                 all_clusters[ii] = cluster_results.T
 
         logger.info("END iteration %s" % iter_i)
