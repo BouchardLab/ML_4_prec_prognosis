@@ -3,6 +3,7 @@ import sys
 from datetime import datetime
 import argparse
 import logging
+from mpi4py import MPI
 import h5py
 from activ.readfile import TrackTBIFile
 from activ.clustering import umap_cluster_sweep, UmapClusteringResults
