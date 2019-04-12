@@ -135,10 +135,10 @@ def compute_umap_distance(X, n_components, metric='euclidean', n_iters=30, agg='
     rand = check_random_state(random_state)
     n = X.shape[0]
     samples = np.zeros(((n*(n-1))//2, n_iters))
-    dist = squareform(pdist(X, metric=metric))
-    umap = UMAP(n_components=n_components, metric='precomputed', random_state=rand, **umap_kwargs)
+    umap = UMAP(n_components=n_components, random_state=rand, **umap_kwargs)
     for i in range(n_iters):
-        samples[:, i] = pdist(umap.fit_transform(dist), metric=metric)
+        emb = umap.fit_transform(X)
+        samples[:, i] = pdist(emb, metric=metric)
     ret = None
     if agg == 'median':
         ret = np.median(samples, axis=1)
