@@ -4,7 +4,7 @@ import math
 from mpi4py import MPI
 import h5py
 
-from activ.clustering import bootstrapped_umap_clustering, UmapClusteringResults
+from activ.clustering import jackknifed_umap_clustering
 from activ.readfile import TrackTBIFile
 from activ.utils import get_logger, get_start_portion
 
@@ -48,7 +48,6 @@ if args.pdata is None:
 else:
     pdata = TrackTBIFile(args.pdata)
 
-
 fkwargs = dict()
 
 n_bootstraps = args.bootstraps
@@ -68,23 +67,22 @@ if size > 1:
     fkwargs['driver'] = 'mpio'
     fkwargs['comm'] = comm
 
-start, portion = get_start_portion(rank, size, n_bootstraps)
+n = pdata.biomarkers.shape[0]
 
-#portion = math.ceil((n_bootstraps - rank) / size)
-#fbsize = math.ceil(n_bootstraps/size)
-#fmr = size - fbsize*size + n_bootstraps
-##start = (fbsize * rank) - (fbsize - portion) * (rank - fmr)
-#start = fbsize*fmr + portion * (rank - fmr)
-
-print(rank, portion, start, start+portion)
+start, portion = get_start_portion(rank, size, n)
 
 logger = get_logger("bootstrap_umap_clustering", comm=comm)
 
-labels, preds, rlabels, rpreds = bootstrapped_umap_clustering(pdata.biomarkers, data.outcomes, portion, cluster_sizes,
-                                                              n_umap_iters=args.umap_iters, logger=logger)
+logger.info('running jackknife replicates for samples %d-%d' % (start, start+portion-1))
+
+labels, preds, rlabels, rpreds = jackknifed_umap_clustering(pdata.biomarkers, data.outcomes, cluster_sizes,
+                                                            indices=list(range(start, start+portion)),
+                                                            n_umap_iters=args.umap_iters, logger=logger)
 
 
-shape = (n_bootstraps, pdata.biomarkers.shape[0], len(cluster_sizes))
+print('labels', labels.shape, 'preds', preds.shape, 'rlabels', rlabels.shape, 'rpreds', rpreds.shape)
+
+shape = (n, n-1, len(cluster_sizes))
 
 if size > 1:
     comm.barrier()
@@ -110,6 +108,8 @@ f.create_dataset('seed', data=seed)
 dset = f.create_dataset('num_ranks', data=size)
 dset.attrs['description'] = "This is the number of MPI ranks used"
 f.create_dataset('cluster_sizes', data=cluster_sizes)
+dset = f.create_dataset('umap_iters', data=args.umap_iters)
+dset.attrs['description'] = "The number of UMAP iterations used for calculating the distance matrix"
 
 f.close()
 

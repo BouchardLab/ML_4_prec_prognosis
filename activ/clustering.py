@@ -1,6 +1,7 @@
 import os.path as _op
 import h5py as _h5py
 import numpy as _np
+import abc as _abc
 import scipy.spatial.distance as _spd
 import scipy.cluster.hierarchy as _sch
 import logging as _logging
@@ -16,6 +17,7 @@ from sklearn.model_selection import cross_val_score, cross_val_predict
 
 from umap import UMAP
 from .data_normalization import data_normalization
+from .sampler import JackknifeSampler, BootstrapSampler, SubSampler
 
 def path_tuple(type_name, **kwargs):
     from collections import namedtuple
@@ -151,12 +153,49 @@ def log(logger, msg):
     if logger is not None:
         logger.info(msg)
 
-def bootstrapped_umap_clustering(X, y, n_bootstraps, cluster_sizes, metric='euclidean',
-                                 classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
-                                 random_state=None, umap_kwargs=dict(), logger=None):
+def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_sizes, logger, classifier, cv):
+    """
+    Run a UMAP clustering sweep
+
+    Arguments:
+        X - shape (n_samples, n_features)
+            the predictor matrix to predict cluster labels with
+
+        y - shape (n_samples, n_response_features)
+            the response matrix to build cluster labels from
+
+
+    Returns:
+        labels - shape (n_samples, n_cluster_sizes)
+            the labels computed for each sample of each boostrap replicate
+
+        preds - shape (n_samples, n_cluster_sizes)
+            the predictions for each sample of each boostrap replicate
+
+        rand_labels - shape (n_samples, n_cluster_sizes)
+            randomized labels computed for each sample of each boostrap replicate
+
+        chances - shape (n_samples, n_cluster_sizes)
+            predictions of randomized labels for each sample of each boostrap replicate
+    """
+    dist = compute_umap_distance(y, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs, n_iters=n_umap_iters)
+    true_labels = cut_tree(linkage(dist, method='ward'), n_clusters=cluster_sizes)
+    rand_labels = np.zeros(true_labels.shape, dtype=true_labels.dtype)
+    preds = np.zeros(true_labels.shape, dtype=true_labels.dtype)
+    chances = np.zeros(true_labels.shape, dtype=true_labels.dtype)
+    for nclust in range(len(cluster_sizes)):
+        log(logger, 'predicting labels from %d clusters' % cluster_sizes[nclust])
+        rand_labels[:, nclust] = rand.permutation(true_labels[:, nclust])
+        preds[:, nclust] = cross_val_predict(classifier, X, true_labels[:, nclust], cv=cv, n_jobs=1)
+        chances[:, nclust] = cross_val_predict(classifier, X, rand_labels[:, nclust], cv=cv, n_jobs=1)
+    return true_labels, rand_labels, preds, chances
+
+def _run_umap_clustering(x, y, cluster_sizes, sampler, metric='euclidean',
+                        classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
+                        random_state=None, umap_kwargs=dict(), logger=None):
 
     """
-    Returns:
+    Arguments:
 
         X - shape (n_samples, n_features)
             the predictor matrix to predict cluster labels with
@@ -164,8 +203,11 @@ def bootstrapped_umap_clustering(X, y, n_bootstraps, cluster_sizes, metric='eucl
         y - shape (n_samples, n_response_features)
             the response matrix to build cluster labels from
 
-        n_bootstraps - int
-            the number of bootstraps to do
+        cluster_sizes - shape (n_cluster_sizes,)
+            the cluster sizes to do predictions for
+
+        sampler - object
+            the resampler to use to generate samples from the original datasets
 
         classifier - object, default : RandomForestClassifier(n_estimators=100).
             the classifier to predict cluster labels with.
@@ -180,6 +222,8 @@ def bootstrapped_umap_clustering(X, y, n_bootstraps, cluster_sizes, metric='eucl
         random_state - int or RandomState
             the seed or RandomState to use
 
+    Returns:
+
         labels - shape (n_bootstraps, n_samples, n_cluster_sizes)
             the labels computed for each sample of each boostrap replicate
 
@@ -193,30 +237,226 @@ def bootstrapped_umap_clustering(X, y, n_bootstraps, cluster_sizes, metric='eucl
             predictions of randomized labels for each sample of each boostrap replicate
     """
     rand = check_random_state(random_state)
-    n = y.shape[0]
-    it = range(n_bootstraps)
+    n = X.shape[0]
+
+    n_iters = sampler.get_n_iters(X)
+
+    n_samples = sampler.get_n_samples(X)
 
     if classifier is None:
         classifier = RFC(100, random_state=rand)
 
-    true_labels = np.zeros((n_bootstraps, n, len(cluster_sizes)), dtype=np.int32)
+    true_labels = np.zeros((n_iters, n_samples, len(cluster_sizes)), dtype=np.int32)
     rand_labels = true_labels.copy()
     preds = np.zeros(true_labels.shape, dtype=np.float64)
     chances = preds.copy()
-    for i in it:
-        log(logger, 'beginning bootstrap %d' % i)
-        indices = rand.randint(n, size=n)
-        y_p = y[indices]
-        X_p = X[indices]
+    mask = np.ones(n, dtype=bool)
+
+    uckwargs = dict(
+        umap_dims=umap_dims,
+        rand=rand,
+        umap_kwargs=umap_kwargs,
+        n_umap_iters=n_umap_iters,
+        cluster_sizes=cluster_sizes,
+        logger=logger,
+        cv=cv,
+        classifier=classifier
+    )
+
+    for i, (X_p, y_p) in enumerate(sampler.sample(X, y)):
+        uckwargs['y'] = y_p
+        uckwargs['X'] = X_p
         log(logger, 'computing UMAP distance matrix')
-        dist = compute_umap_distance(y_p, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs, n_iters=n_umap_iters)
-        true_labels[i] = cut_tree(linkage(dist, method='ward'), n_clusters=cluster_sizes)
-        for nclust in range(len(cluster_sizes)):
-            log(logger, 'predicting labels from %d clusters' % cluster_sizes[nclust])
-            rand_labels[i, :, nclust] = rand.permutation(true_labels[i, :, nclust])
-            preds[i, :, nclust] = cross_val_predict(classifier, X_p, true_labels[i, :, nclust], cv=cv, n_jobs=1)
-            chances[i, :, nclust] = cross_val_predict(classifier, X_p, rand_labels[i, :, nclust], cv=cv, n_jobs=1)
+        true_labels[i], rand_labels[i], preds[i], chances[i] = _umap_cluster(**uckwargs)
+        #tmp = _umap_cluster(**uckwargs)
+        #breakpoint()
+        #true_labels[i], rand_labels[i], preds[i], chances[i] = tmp
     return true_labels, preds, rand_labels, chances
+
+
+def jackknifed_umap_clustering(X, y, cluster_sizes, indices=None, metric='euclidean',
+                                 classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
+                                 random_state=None, umap_kwargs=dict(), logger=None):
+    """
+    Arguments:
+
+        X - shape (n_samples, n_features)
+            the predictor matrix to predict cluster labels with
+
+        y - shape (n_samples, n_response_features)
+            the response matrix to build cluster labels from
+
+        indices - int
+            the indices to do jackknife replicates for
+
+        classifier - object, default : randomforestclassifier(n_estimators=100).
+            the classifier to predict cluster labels with.
+
+        cv - int or cross-validation generator, default: 5
+            the number of cv folds or the cross-validation generator to use for
+            predicting labels. if an integer is supplied, stratifiedkfold will be done
+
+        n_umap_iters - int
+            the number of iterations to use for calculating the umap
+
+        random_state - int or randomstate
+            the seed or randomstate to use
+
+    Returns:
+
+        labels - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            the labels computed for each sample of each boostrap replicate
+
+        preds - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            the predictions for each sample of each boostrap replicate
+
+        rand_labels - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            randomized labels computed for each sample of each boostrap replicate
+
+        chances - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            predictions of randomized labels for each sample of each boostrap replicate
+    """
+
+
+    kwargs = dict(
+        X=X,
+        y=y,
+        cluster_sizes=cluster_sizes,
+        metric=metric,
+        classifier=classifier,
+        cv=cv,
+        n_umap_iters=n_umap_iters,
+        umap_dims=umap_dims,
+        random_state=random_state,
+        umap_kwargs=umap_kwargs,
+        logger=logger,
+    )
+    kwargs['sampler'] = JackknifeSampler(indices=indices)
+    return _run_umap_clustering(**kwargs)
+
+
+def bootstrapped_umap_clustering(X, y, cluster_sizes, n_iters, metric='euclidean',
+                              classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
+                              random_state=None, umap_kwargs=dict(), logger=None):
+
+    """
+    Arguments:
+
+        X - shape (n_samples, n_features)
+            the predictor matrix to predict cluster labels with
+
+        y - shape (n_samples, n_response_features)
+            the response matrix to build cluster labels from
+
+        n_bootstraps - int
+            the number of bootstraps to do
+
+        classifier - object, default : randomforestclassifier(n_estimators=100).
+            the classifier to predict cluster labels with.
+
+        cv - int or cross-validation generator, default: 5
+            the number of cv folds or the cross-validation generator to use for
+            predicting labels. if an integer is supplied, stratifiedkfold will be done
+
+        n_umap_iters - int
+            the number of iterations to use for calculating the umap
+
+        random_state - int or randomstate
+            the seed or randomstate to use
+
+    Returns:
+
+        labels - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            the labels computed for each sample of each boostrap replicate
+
+        preds - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            the predictions for each sample of each boostrap replicate
+
+        rand_labels - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            randomized labels computed for each sample of each boostrap replicate
+
+        chances - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            predictions of randomized labels for each sample of each boostrap replicate
+    """
+
+    kwargs = dict(
+        X=X,
+        y=y,
+        cluster_sizes=cluster_sizes,
+        metric=metric,
+        classifier=classifier,
+        cv=cv,
+        n_umap_iters=n_umap_iters,
+        umap_dims=umap_dims,
+        random_state=random_state,
+        umap_kwargs=umap_kwargs,
+        logger=logger,
+    )
+    kwargs['sampler'] = BootstrapSampler(n_iters, random_state=random_state)
+    return _run_umap_clustering(**kwargs)
+
+
+def subsample_umap_clustering(X, y, cluster_sizes, n_iters, subsample_size, metric='euclidean',
+                             classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
+                             random_state=None, umap_kwargs=dict(), logger=None):
+    """
+    Arguments:
+
+        X - shape (n_samples, n_features)
+            the predictor matrix to predict cluster labels with
+
+        y - shape (n_samples, n_response_features)
+            the response matrix to build cluster labels from
+
+        n_iters - int
+            the number of iterations to do
+
+        subsample_size - int or float
+            the size of the subsample to take
+
+        classifier - object, default : randomforestclassifier(n_estimators=100).
+            the classifier to predict cluster labels with.
+
+        cv - int or cross-validation generator, default: 5
+            the number of cv folds or the cross-validation generator to use for
+            predicting labels. if an integer is supplied, stratifiedkfold will be done
+
+        n_umap_iters - int
+            the number of iterations to use for calculating the umap
+
+        random_state - int or randomstate
+            the seed or randomstate to use
+
+    Returns:
+
+        labels - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            the labels computed for each sample of each boostrap replicate
+
+        preds - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            the predictions for each sample of each boostrap replicate
+
+        rand_labels - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            randomized labels computed for each sample of each boostrap replicate
+
+        chances - shape (n_bootstraps, n_samples, n_cluster_sizes)
+            predictions of randomized labels for each sample of each boostrap replicate
+    """
+
+    kwargs = dict(
+        X=X,
+        y=y,
+        cluster_sizes=cluster_sizes,
+        metric=metric,
+        classifier=classifier,
+        cv=cv,
+        n_umap_iters=n_umap_iters,
+        umap_dims=umap_dims,
+        random_state=random_state,
+        umap_kwargs=umap_kwargs,
+        logger=logger,
+    )
+    kwargs['sampler'] = SubSampler(n_iters, subsample_size=subsample_size, random_state=random_state)
+    return _run_umap_clustering(**kwargs)
 
 def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, metric='mahalanobis',
                        predict_data=None, h5group=None, classifier=RFC(100),
