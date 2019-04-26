@@ -153,7 +153,7 @@ def log(logger, msg):
     if logger is not None:
         logger.info(msg)
 
-def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_sizes, logger, classifier, cv):
+def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_sizes, logger, classifier, cv, agg):
     """
     Run a UMAP clustering sweep
 
@@ -178,7 +178,7 @@ def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_size
         chances - shape (n_samples, n_cluster_sizes)
             predictions of randomized labels for each sample of each boostrap replicate
     """
-    dist = compute_umap_distance(y, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs, n_iters=n_umap_iters)
+    dist = compute_umap_distance(y, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs, n_iters=n_umap_iters, agg=agg)
     true_labels = cut_tree(linkage(dist, method='ward'), n_clusters=cluster_sizes)
     rand_labels = np.zeros(true_labels.shape, dtype=true_labels.dtype)
     preds = np.zeros(true_labels.shape, dtype=true_labels.dtype)
@@ -190,7 +190,7 @@ def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_size
         chances[:, nclust] = cross_val_predict(classifier, X, rand_labels[:, nclust], cv=cv, n_jobs=1)
     return true_labels, rand_labels, preds, chances
 
-def _run_umap_clustering(x, y, cluster_sizes, sampler, metric='euclidean',
+def _run_umap_clustering(x, y, cluster_sizes, sampler, agg='median', metric='euclidean',
                         classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
                         random_state=None, umap_kwargs=dict(), logger=None):
 
@@ -260,7 +260,8 @@ def _run_umap_clustering(x, y, cluster_sizes, sampler, metric='euclidean',
         cluster_sizes=cluster_sizes,
         logger=logger,
         cv=cv,
-        classifier=classifier
+        classifier=classifier,
+	agg=agg
     )
 
     for i, (X_p, y_p) in enumerate(sampler.sample(X, y)):
@@ -274,7 +275,7 @@ def _run_umap_clustering(x, y, cluster_sizes, sampler, metric='euclidean',
     return true_labels, preds, rand_labels, chances
 
 
-def jackknifed_umap_clustering(X, y, cluster_sizes, indices=None, metric='euclidean',
+def jackknifed_umap_clustering(X, y, cluster_sizes, indices=None, agg='median', metric='euclidean',
                                  classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
                                  random_state=None, umap_kwargs=dict(), logger=None):
     """
@@ -330,12 +331,13 @@ def jackknifed_umap_clustering(X, y, cluster_sizes, indices=None, metric='euclid
         random_state=random_state,
         umap_kwargs=umap_kwargs,
         logger=logger,
+	agg=agg
     )
     kwargs['sampler'] = JackknifeSampler(indices=indices)
     return _run_umap_clustering(**kwargs)
 
 
-def bootstrapped_umap_clustering(X, y, cluster_sizes, n_iters, metric='euclidean',
+def bootstrapped_umap_clustering(X, y, cluster_sizes, n_iters, agg='median', metric='euclidean',
                               classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
                               random_state=None, umap_kwargs=dict(), logger=None):
 
@@ -391,12 +393,13 @@ def bootstrapped_umap_clustering(X, y, cluster_sizes, n_iters, metric='euclidean
         random_state=random_state,
         umap_kwargs=umap_kwargs,
         logger=logger,
+	agg=agg
     )
     kwargs['sampler'] = BootstrapSampler(n_iters, random_state=random_state)
     return _run_umap_clustering(**kwargs)
 
 
-def subsample_umap_clustering(X, y, cluster_sizes, n_iters, subsample_size, metric='euclidean',
+def subsample_umap_clustering(X, y, cluster_sizes, n_iters, subsample_size, agg='median', metric='euclidean',
                              classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
                              random_state=None, umap_kwargs=dict(), logger=None):
     """
@@ -454,6 +457,7 @@ def subsample_umap_clustering(X, y, cluster_sizes, n_iters, subsample_size, metr
         random_state=random_state,
         umap_kwargs=umap_kwargs,
         logger=logger,
+	agg=agg
     )
     kwargs['sampler'] = SubSampler(n_iters, subsample_size=subsample_size, random_state=random_state)
     return _run_umap_clustering(**kwargs)

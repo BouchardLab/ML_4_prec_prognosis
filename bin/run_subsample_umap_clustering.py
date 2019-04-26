@@ -33,6 +33,8 @@ parser.add_argument("-f", "--fraction", type=float, help="the fraction of the or
 parser.add_argument("-c", "--cluster_sizes", type=int_list, help="a comma-separated list of the cluster sizes",
                     default=list(range(2, 15)))
 parser.add_argument("-u", "--umap_iters", type=int, help="the number of iterations to do with UMAP", default=30)
+parser.add_argument("-a", "--aggregate", type=str, help="type of aggregating", default='median')
+parser.add_argument("-D", "--dead", action='store_true', help="use dead data", default=False)
 
 args = parser.parse_args()
 
@@ -40,12 +42,18 @@ args = parser.parse_args()
 data = None         # source of data for building clusters
 pdata = None        # source of data for predicting cluster labels
 if args.data is None:
-    data = load_data()
+    if args.dead is True:
+	data = load_data(dead=True)
+    else:
+	data = load_data()
 else:
     data = TrackTBIFile(args.data)
 
 if args.pdata is None:
-    pdata = load_data()
+    if args.dead is True:
+	pdata = load_data(dead=True)
+    else:
+	pdata = load_data()
 else:
     pdata = TrackTBIFile(args.pdata)
 
@@ -74,7 +82,7 @@ start, portion = get_start_portion(rank, size, n_iters)
 logger = get_logger("bootstrap_umap_clustering", comm=comm)
 
 labels, preds, rlabels, rpreds = subsample_umap_clustering(pdata.biomarkers, data.outcomes, cluster_sizes,
-                                                           portion, args.fraction,
+                                                           portion, args.fraction, agg=args.aggregate,
                                                            n_umap_iters=args.umap_iters, logger=logger)
 
 shape = (n_iters, labels.shape[1], len(cluster_sizes))
