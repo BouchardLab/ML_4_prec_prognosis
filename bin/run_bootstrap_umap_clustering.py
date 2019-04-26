@@ -43,14 +43,14 @@ pdata = None        # source of data for predicting cluster labels
 if args.data is None:
     if args.dead is True:
 	data = load_data(dead=True)
-    else:    
+    else:
 	data = load_data()
 else:
     data = TrackTBIFile(args.data)
 
 if args.pdata is None:
     if args.dead is True:
-	pdata = load_data(dead=True)    
+	pdata = load_data(dead=True)
     else:
 	pdata = load_data()
 else:
@@ -118,6 +118,8 @@ f.create_dataset('seed', data=seed)
 dset = f.create_dataset('num_ranks', data=size)
 dset.attrs['description'] = "This is the number of MPI ranks used"
 f.create_dataset('cluster_sizes', data=cluster_sizes)
+dset = f.create_dataset('umap_iters', data=args.umap_iters)
+dset.attrs['description'] = "The number of UMAP iterations used for calculating the distance matrix"
 
 f.close()
 
