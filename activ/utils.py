@@ -36,3 +36,13 @@ def get_start_portion(rank, size, n):
     fmr = size - fbsize*size + n
     start = fbsize*fmr + portion * (rank - fmr)
     return start, portion
+
+
+def check_random_state(random_state):
+    if random_state is None:
+        rand = np.random.RandomState()
+    elif isinstance(random_state, (np.int32, np.int64, np.int16, np.int8, int)):
+        rand = np.random.RandomState(random_state)
+    else:
+        rand = random_state
+    return rand

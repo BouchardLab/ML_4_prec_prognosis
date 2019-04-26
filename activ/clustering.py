@@ -18,6 +18,7 @@ from sklearn.model_selection import cross_val_score, cross_val_predict
 from umap import UMAP
 from .data_normalization import data_normalization
 from .sampler import JackknifeSampler, BootstrapSampler, SubSampler
+from .utils import check_random_state
 
 def path_tuple(type_name, **kwargs):
     from collections import namedtuple
@@ -114,15 +115,6 @@ class UmapClusteringResults(object):
 #           pred = cross_val_predict(classifier, predict_data, labels, cv=cv_folds)
 #           score = accuracy_score(label, pred)
 
-
-def check_random_state(random_state):
-    if random_state is None:
-        rand = np.random.RandomState()
-    elif isinstance(random_state, (np.int32, np.int64, np.int16, np.int8, int)):
-        rand = np.random.RandomState(random_state)
-    else:
-        rand = random_state
-    return rand
 
 
 def get_rank_size(comm):
