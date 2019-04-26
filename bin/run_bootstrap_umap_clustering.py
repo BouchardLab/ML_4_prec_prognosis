@@ -44,7 +44,7 @@ if args.data is None:
     if args.dead is True:
         data = load_data(dead=True)
     else:
-	    data = load_data()
+        data = load_data()
 else:
     data = TrackTBIFile(args.data)
 
@@ -52,7 +52,7 @@ if args.pdata is None:
     if args.dead is True:
 	    pdata = load_data(dead=True)
     else:
-	    pdata = load_data()
+        pdata = load_data()
 else:
     pdata = TrackTBIFile(args.pdata)
 
