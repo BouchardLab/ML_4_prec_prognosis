@@ -50,7 +50,7 @@ else:
 
 if args.pdata is None:
     if args.dead is True:
-	    pdata = load_data(dead=True)
+        pdata = load_data(dead=True)
     else:
         pdata = load_data()
 else:
