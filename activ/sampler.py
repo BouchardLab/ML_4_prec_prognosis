@@ -1,5 +1,6 @@
 import abc as _abc
 import numpy as _np
+from .clustering import check_random_state
 
 class AbstractSampler(object, metaclass=_abc.ABCMeta):
 
