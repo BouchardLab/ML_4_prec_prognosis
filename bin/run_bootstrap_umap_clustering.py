@@ -88,7 +88,7 @@ print(rank, portion, start, start+portion)
 
 logger = get_logger("bootstrap_umap_clustering", comm=comm)
 
-labels, preds, rlabels, rpreds = bootstrapped_umap_clustering(pdata.biomarkers, data.outcomes, portion, cluster_sizes,
+labels, preds, rlabels, rpreds = bootstrapped_umap_clustering(pdata.biomarkers, data.outcomes, cluster_sizes, portion,
                                                               agg=args.aggregate, n_umap_iters=args.umap_iters, logger=logger)
 
 
