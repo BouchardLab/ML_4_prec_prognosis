@@ -1,7 +1,7 @@
 import sys
 import logging
 import math
-
+import numpy as np
 
 def get_logger(logger_name, comm=None, path=None, quiet=False):
     rank, size = 1, 1

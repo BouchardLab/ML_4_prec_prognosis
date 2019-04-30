@@ -182,7 +182,7 @@ def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_size
         chances[:, nclust] = cross_val_predict(classifier, X, rand_labels[:, nclust], cv=cv, n_jobs=1)
     return true_labels, rand_labels, preds, chances
 
-def _run_umap_clustering(x, y, cluster_sizes, sampler, agg='median', metric='euclidean',
+def _run_umap_clustering(X, y, cluster_sizes, sampler, agg='median', metric='euclidean',
                         classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
                         random_state=None, umap_kwargs=dict(), logger=None):
 

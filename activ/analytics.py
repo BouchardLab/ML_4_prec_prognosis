@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import h5py
 import os
 import scipy
+from sklearn.metrics import accuracy_score
 
 def heatmap(data, row_labels, col_labels, ax=None,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
@@ -316,3 +317,59 @@ def plot_clustering_results_activ_data(group_name, plot_this, specific_plot_name
             plt.title(str(plot_title), fontsize=20)
             plt.xlabel("Cluster sizes", fontsize=20)
             plt.ylabel("Normalized IQR", fontsize=20)
+
+
+def cluster_plot(path, plot_this, title, ax=None):
+    f = h5py.File(path, mode='r')
+    try:
+        labels = f['labels'][:]
+        preds = f['preds'][:]
+        rlabels = f['rlabels'][:]
+        rpreds = f['rpreds'][:]
+        cluster_sizes = f['cluster_sizes'][:]
+    finally:
+        f.close()
+
+    n_subsamples = labels.shape[0]
+    n_cluster_sizes = labels.shape[2]
+    accuracy = np.zeros((n_cluster_sizes, n_subsamples))
+    chance = np.zeros((n_cluster_sizes, n_subsamples))
+
+    for sample in range(n_subsamples):
+        for cl in range(n_cluster_sizes):
+            sl = np.s_[sample, :, cl]
+            accuracy[cl, sample] = accuracy_score(labels[sl], preds[sl])
+            chance[cl, sample] = accuracy_score(rlabels[sl], rpreds[sl])
+    foc = accuracy/chance
+
+    accuracy_lower = np.percentile(accuracy, 25, axis=1)
+    accuracy_med = np.percentile(accuracy, 50, axis=1)
+    accuracy_upper = np.percentile(accuracy, 75, axis=1)
+
+    chance_lower = np.percentile(chance, 25, axis=1)
+    chance_med = np.percentile(chance, 50, axis=1)
+    chance_upper = np.percentile(chance, 75, axis=1)
+
+    foc_lower = np.percentile(foc, 25, axis=1)
+    foc_med = np.percentile(foc, 50, axis=1)
+    foc_upper = np.percentile(foc, 75, axis=1)
+
+    iqr = foc_upper-foc_lower
+    rel_iqr = iqr/np.median(foc, axis=1)
+
+    if plot_this == 'foc':
+        ax.errorbar(cluster_sizes, foc_med, yerr=[foc_med-foc_lower,foc_upper-foc_med], color = 'red',fmt='-o', label='Fold over chance')
+        ax.set_title(title, fontsize=20)
+        ax.set_xlabel("Cluster sizes")
+        ax.set_ylabel("Fold over chance")
+    elif plot_this == 'iqr':
+        ax.plot(cluster_sizes, iqr, '-o', color='black')
+        ax.set_title(title, fontsize=20)
+        ax.set_xlabel("Cluster sizes")
+        ax.set_ylabel("IQR")
+    elif plot_this == 'rel_iqr':
+        ax.plot(cluster_sizes, rel_iqr, '-o', color='gray')
+        ax.set_title(title, fontsize=20)
+        ax.set_xlabel("Cluster sizes")
+        ax.set_ylabel("Relative IQR")
+
