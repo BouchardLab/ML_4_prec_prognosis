@@ -2,5 +2,8 @@ scikit-learn
 numpy
 scipy
 h5py
+matplotlib
+seaborn
 umap-learn
-deepdish
+hdbscan
+pandas

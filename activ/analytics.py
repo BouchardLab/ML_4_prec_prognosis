@@ -1,12 +1,13 @@
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.pyplot as plt
+import itertools
 import h5py
 import os
 import scipy
 from sklearn.metrics import accuracy_score
 
-def heatmap(data, row_labels, col_labels, ax=None,
+def heatmap(data, row_labels=None, col_labels=None, ax=None, show_cbar=True,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
             title=None, **kwargs):
     """
@@ -36,41 +37,70 @@ def heatmap(data, row_labels, col_labels, ax=None,
 
     kwargs.setdefault('cmap', 'binary')
     # Plot the heatmap
-    im = ax.imshow(data, **kwargs)
-
-    # create an axes on the right side of ax. The width of cax will be 5%
-    # of ax and the padding between cax and ax will be fixed at 0.05 inch.
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="2%", pad=0.1)
+    im = ax.imshow(data, aspect='auto', **kwargs)
 
     # Create colorbar
-    cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw, cax=cax)
-    cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
+    cbar = None
+    if show_cbar:
+        # create an axes on the right side of ax. The width of cax will be 5%
+        # of ax and the padding between cax and ax will be fixed at 0.05 inch.
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="2%", pad=0.1)
+        cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw, cax=cax)
+        cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
 
+    if row_labels is not None:
     # We want to show all ticks...
-    ax.set_xticks(np.arange(data.shape[1]))
-    ax.set_yticks(np.arange(data.shape[0]))
-    # ... and label them with the respective list entries.
-    ax.set_xticklabels(col_labels)
 
-    ax.set_yticklabels(row_labels)
-    ax.set_xlabel(None)
-    if xlab is not None:
-        ax.set_xlabel(xlab)
-    if ylab is not None:
-        ax.set_ylabel(ylab)
+        ax.set_yticks(np.arange(data.shape[0]))
+        ax.set_yticklabels(row_labels)
+        if xlab is not None:
+            ax.set_xlabel(xlab)
+
+    # ... and label them with the respective list entries.
+    if col_labels is not None:
+        ax.set_xticks(np.arange(data.shape[1]))
+        ax.set_xticklabels(col_labels)
+        if ylab is not None:
+            ax.set_ylabel(ylab)
+
     if title is not None:
         ax.set_title(title)
 
-    # Let the horizontal axes labeling appear on top.
-    #ax.tick_params(top=True, bottom=False,
-    #               labeltop=True, labelbottom=False)
-
-    # Rotate the tick labels and set their alignment.
-    #plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
-    #        rotation_mode="anchor")
-
     return im, cbar
+
+
+def plot_confusion_matrix(cm, classes,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=plt.cm.binary):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.tight_layout()
 
 def nmf_bases_heatmap(data, col_labels, sort=True, ax=None,
             cumsum_thresh=0.99,

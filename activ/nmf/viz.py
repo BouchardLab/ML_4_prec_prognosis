@@ -171,18 +171,32 @@ def weights_clustermap(data, row_linkage=None, col_linkage=None, cmap='binary',
         col_linkage=col_linkage,
         cmap=cmap,
     )
-    label_legend = None
+    label_legend = dict()
     kwargs['row_colors'] = list()
     if row_labels is not None:
-        labels, label_legend = get_labels(row_labels)
-        kwargs['row_colors'].append(labels)
+        if isinstance(row_labels, dict):
+            for k, v in row_labels.items():
+                lbl, leg = get_labels(v)
+                kwargs['row_colors'].append(lbl)
+                label_legend[k] = leg
+        else:
+            lbl, leg = get_labels(row_labels)
+            kwargs['row_colors'].append(lbl)
+            label_legend[legend_title] = leg
 
     if cm_kwargs is not None:
         kwargs.update(cm_kwargs)
     cg = sns.clustermap(data, **kwargs)
-    if label_legend is not None:
-        l2 = cg.ax_col_dendrogram.legend(loc='best', bbox_to_anchor=(0.0,1.0), handles=label_legend, frameon=True)
-        l2.set_title(legend_title, prop={'size':12})
+
+    st = 1.2          # TODO: figure out how to not have to hardcode this!
+    l2 = None
+    for ll_name, ll in label_legend.items():
+        if l2 is not None:
+            cg.ax_col_dendrogram.add_artist(l2)
+        l2 = cg.ax_col_dendrogram.legend(loc='best', bbox_to_anchor=(st,1.0), handles=ll, frameon=True)
+        l2.set_title(ll_name, prop={'size':8})
+        st = st + 0.15
+
     return cg, row_linkage, col_linkage
 
 
