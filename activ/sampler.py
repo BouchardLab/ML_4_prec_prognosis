@@ -77,7 +77,7 @@ class BootstrapSampler(AbstractSampler):
     def sample(self, *arrays):
         self._check_Xs(*arrays)
         n = arrays[0].shape[0]
-        for i in range(n):
+        for i in range(self.n_iters):
             idx = self.random_state.randint(n, size=n)
             if len(arrays) == 1:
                 yield arrays[0][idx]

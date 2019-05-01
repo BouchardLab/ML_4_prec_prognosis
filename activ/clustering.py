@@ -261,9 +261,6 @@ def _run_umap_clustering(X, y, cluster_sizes, sampler, agg='median', metric='euc
         uckwargs['X'] = X_p
         log(logger, 'computing UMAP distance matrix')
         true_labels[i], rand_labels[i], preds[i], chances[i] = _umap_cluster(**uckwargs)
-        #tmp = _umap_cluster(**uckwargs)
-        #breakpoint()
-        #true_labels[i], rand_labels[i], preds[i], chances[i] = tmp
     return true_labels, preds, rand_labels, chances
 
 

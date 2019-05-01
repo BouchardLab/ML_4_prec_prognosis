@@ -91,7 +91,7 @@ logger = get_logger("bootstrap_umap_clustering", comm=comm)
 labels, preds, rlabels, rpreds = bootstrapped_umap_clustering(pdata.biomarkers, data.outcomes, cluster_sizes, portion,
                                                               agg=args.aggregate, n_umap_iters=args.umap_iters, logger=logger)
 
-shape = (n_bootstraps, pdata.biomarkers.shape[0], len(cluster_sizes))
+shape = (n_bootstraps, labels.shape[1], len(cluster_sizes))
 
 if size > 1:
     comm.barrier()

@@ -348,8 +348,7 @@ def plot_clustering_results_activ_data(group_name, plot_this, specific_plot_name
             plt.xlabel("Cluster sizes", fontsize=20)
             plt.ylabel("Normalized IQR", fontsize=20)
 
-
-def cluster_plot(path, plot_this, title, ax=None):
+def return_plot_items(path):
     f = h5py.File(path, mode='r')
     try:
         labels = f['labels'][:]
@@ -369,7 +368,7 @@ def cluster_plot(path, plot_this, title, ax=None):
         for cl in range(n_cluster_sizes):
             sl = np.s_[sample, :, cl]
             accuracy[cl, sample] = accuracy_score(labels[sl], preds[sl])
-            chance[cl, sample] = accuracy_score(rlabels[sl], rpreds[sl])
+            chance[cl, sample] = accuracy_score(labels[sl], rpreds[sl])
     foc = accuracy/chance
 
     accuracy_lower = np.percentile(accuracy, 25, axis=1)
@@ -386,7 +385,10 @@ def cluster_plot(path, plot_this, title, ax=None):
 
     iqr = foc_upper-foc_lower
     rel_iqr = iqr/np.median(foc, axis=1)
+    return foc, iqr, rel_iqr, cluster_sizes
 
+def cluster_plot(path, plot_this, title, ax=None):
+    foc, iqr, rel_iqr, cluster_sizes = return_plot_items(path)
     if plot_this == 'foc':
         ax.errorbar(cluster_sizes, foc_med, yerr=[foc_med-foc_lower,foc_upper-foc_med], color = 'red',fmt='-o', label='Fold over chance')
         ax.set_title(title, fontsize=20)
