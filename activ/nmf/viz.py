@@ -55,7 +55,7 @@ def get_sig_variables(nmf_bases, frac=0.250):
 
 
 def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
-            cumsum_thresh=0.99,
+            highlight=False, highlight_weight=0.7, cumsum_thresh=0.99,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
             title=None, **kwargs):
     """
@@ -64,21 +64,26 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
     Arguments:
         data       : A 2D numpy array of shape (N,M)
     Optional arguments:
-        row_labels : A list or array of length N with the outcome
-                     factors for the rows
-        col_labels : A list or array of length M with the outcome
-                     labels for the columns
-        sort       : whether or not to sort rows and columns. If a array-like is passed in,
-                     it will be used to order rows.
-        xlab       : the label for the x-axis
-        ylab       : the label for the y-axis
-        title      : the title for the heatmap
-        ax         : A matplotlib.axes.Axes instance to which the heatmap
-                     is plotted. If not provided, use current axes or
-                     create a new one.
-        cbar_kw    : A dictionary with arguments to
-                     :meth:`matplotlib.Figure.colorbar`.
-        cbarlabel  : The label for the colorbar
+        row_labels         : A list or array of length N with the outcome
+                             factors for the rows
+        col_labels         : A list or array of length M with the outcome
+                             labels for the columns
+        sort               : whether or not to sort rows and columns. If a array-like is passed in,
+                             it will be used to order rows.
+        highlight          : True to highlight bases with different colorwise. Custom colors
+                             can be used by passing in a custom pallete. False to not color
+                             (default = False)
+        highlight_weight   : the weight of the higlighting (default = 0.7)
+        xlab               : the label for the x-axis
+        ylab               : the label for the y-axis
+        title              : the title for the heatmap
+        ax                 : A matplotlib.axes.Axes instance to which the heatmap
+                             is plotted. If not provided, use current axes or
+                             create a new one.
+        cbar_kw            : A dictionary with arguments to
+                             :meth:`matplotlib.Figure.colorbar`.
+        cbarlabel          : The label for the colorbar
+        kwargs             : additional arguments to pass in to imshow
     All other arguments are directly passed on to the imshow call.
     """
 
@@ -108,7 +113,8 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
         for i, c in enumerate(plot_data.T):
             mi = np.argmax(c)
             to_sort.append((mi, -1*c[mi], i))
-        new_order = np.array([t[2] for t in sorted(to_sort)])
+        to_sort = sorted(to_sort)
+        new_order = np.array([t[2] for t in to_sort])
         plot_data = plot_data[:,new_order]
         row_order = factor_order
         col_order = new_order
@@ -135,9 +141,7 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
     if col_labels is not False:
         ax.set_xticks(np.arange(plot_data.shape[1]))
         col_labels = np.asarray(col_labels)[col_order]
-        ax.set_xticklabels(col_labels)
-        plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
-                rotation_mode="anchor")
+        ax.set_xticklabels(col_labels, rotation=45, ha="right", rotation_mode="anchor")
     else:
         ax.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
 
@@ -146,7 +150,9 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
         row_labels = np.asarray(row_labels)[row_order]
         ax.set_yticklabels(row_labels)
     else:
-        ax.tick_params(axis='y', which='both', bottom=False, top=False, labelbottom=False)
+        ax.set_yticks(np.arange(plot_data.shape[0]))
+        ax.set_yticklabels(row_order)
+        #ax.tick_params(axis='y', which='both', bottom=False, top=False, labelbottom=False)
 
     ax.set_xlabel(None)
     if xlab is not None:
@@ -155,6 +161,35 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
         ax.set_ylabel(ylab, fontsize=36)
     if title is not None:
         ax.set_title(title, fontsize=48)
+
+    if highlight is not None and highlight != False:
+
+        if isinstance(highlight, bool):
+            highlight = sns.color_palette('Set2', plot_data.shape[0])
+        maxes = np.argmax(plot_data, axis=1)
+        bnd = list()
+        for b_i in range(len(maxes)-1):
+            mx = maxes[b_i+1]
+            if mx < maxes[b_i]:
+                srt = np.argsort(plot_data[b_i+1])
+                i = 1
+                new_mx = srt[i]
+                while new_mx <= maxes[b_i]:
+                    i += 1
+                    new_mx = srt[i]
+                bnd.append(new_mx)
+            else:
+                bnd.append(mx)
+        bnd = [b - 0.5 for b in bnd]
+        bounds = list(zip([-0.5]+bnd, bnd+[plot_data.shape[1]]))
+        y = -0.5
+        height = plot_data.shape[1]
+        for b_i, bound in enumerate(bounds):
+            x = bound[0]
+            width = bound[1] - x
+            color = highlight[b_i]
+            ax.add_patch(mpatches.Rectangle((x, y), width, height, fill=True,
+                         facecolor=color, lw=0, alpha=highlight_weight))
 
     # Rotate the tick labels and set their alignment.
     return im, row_order, col_order
