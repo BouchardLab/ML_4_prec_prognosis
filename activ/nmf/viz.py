@@ -3,7 +3,8 @@ import itertools as it
 import numpy as np
 import pandas as pd
 import scipy.cluster.hierarchy as sch
-import matplotlib.patches as mpatches
+
+from ..viz import get_labels
 
 def get_comb(order):
     """Return a linkage matrix that will order labels in the order in which they are given"""
@@ -15,15 +16,6 @@ def get_comb(order):
         Z.append([tmp[i+2], nclus+i, 2+i, 2+1])
     Z = np.array(Z, dtype=float)
     return Z
-
-
-def get_labels(column):
-    uniq = np.unique(column)
-    colors = sns.hls_palette(len(uniq))
-    lut = dict(zip(uniq, colors))
-    labels = pd.Series([lut[v] for v in column])
-    patches = [mpatches.Patch(color=c, label=l) for l, c in lut.items()]
-    return labels, patches
 
 
 def get_sig_total_lev(nmf_bases, frac=0.5):
