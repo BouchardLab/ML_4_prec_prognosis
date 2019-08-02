@@ -8,8 +8,9 @@ from sklearn.linear_model import LassoCV
 
 
 class SparseCCA(BaseEstimator):
-    def __init__(self, lasso=None, random_state=None, n_components=1, max_iters=100, tol=1e-4):
-        self.lasso = LassoCV(n_alphas=10, fit_intercept=False, cv=5, max_iter=20000, tol=0.0001)
+    def __init__(self, X_lasso=None, Y_lasso=None, random_state=None, n_components=1, max_iters=100, tol=1e-4):
+        self.X_lasso = LassoCV(n_alphas=10, fit_intercept=False, cv=5, max_iter=20000, tol=0.0001)
+        self.Y_lasso = LassoCV(n_alphas=10, fit_intercept=False, cv=5, max_iter=20000, tol=0.0001)
         self.random_state = check_random_state(random_state)
         self.n_components = n_components
         self.max_iters = max_iters
@@ -39,13 +40,13 @@ class SparseCCA(BaseEstimator):
 
         for comp in range(self.n_components):
             theta = normalize(self.random_state.rand(Y_i.shape[1],1), norm='l2', axis=0)
-            beta = self.lasso.fit(X_i, Y_i@theta).coef_
+            beta = np.zeros((X_i.shape[1],1))
 
             i = 0
 
             for i in range(self.max_iters):
-                beta_new = self.lasso.fit(X_i, (Y_i@theta).ravel()).coef_
-                theta_new = self.lasso.fit(Y_i, (X_i@beta).ravel()).coef_
+                beta_new = self.X_lasso.fit(X_i, (Y_i@theta).ravel()).coef_
+                theta_new = self.Y_lasso.fit(Y_i, (X_i@beta).ravel()).coef_
                 self.beta_d_[comp, i] = np.linalg.norm(beta_new - beta)/beta.shape[0]
                 self.theta_d_[comp, i] = np.linalg.norm(theta_new - theta)/theta.shape[0]
                 beta = beta_new
