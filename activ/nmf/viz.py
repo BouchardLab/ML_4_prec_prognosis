@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import scipy.cluster.hierarchy as sch
 
+import matplotlib.patches as mpatches
+
 from ..viz import get_labels
 
 def get_comb(order):
@@ -84,9 +86,9 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
         ax = plt.gca()
 
     kwargs.setdefault('cmap', 'binary')
-    if row_labels is None or col_labels == True:
+    if row_labels is None or row_labels is True:
         row_labels = np.arange(data.shape[0]) + 1
-    if col_labels is None or col_labels == True:
+    if col_labels is None or col_labels is True:
         col_labels = np.arange(data.shape[1]) + 1
 
 
