@@ -11,6 +11,9 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.cluster.hierarchy import linkage, cut_tree
 
 import numpy as np
+import scipy.stats as sps
+import scipy.optimize as spo
+from sklearn.metrics import accuracy_score
 
 from sklearn.ensemble import RandomForestClassifier as RFC
 from sklearn.model_selection import cross_val_score, cross_val_predict
@@ -641,3 +644,192 @@ def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, met
         h5group.close()
 
     return score, norm_score, seed, all_embeddings, clusters
+
+
+def read_data(path):
+    f = _h5py.File(path, mode='r')
+    try:
+        labels = f['labels'][:]
+        preds = f['preds'][:]
+        rlabels = f['rlabels'][:]
+        rpreds = f['rpreds'][:]
+        cluster_sizes = f['cluster_sizes'][:]
+    finally:
+        f.close()
+
+    n_subsamples = labels.shape[0]
+    n_cluster_sizes = labels.shape[2]
+    accuracy = np.zeros((n_cluster_sizes, n_subsamples))
+    chance = np.zeros((n_cluster_sizes, n_subsamples))
+
+    for sample in range(n_subsamples):
+        for cl in range(n_cluster_sizes):
+            sl = np.s_[sample, :, cl]
+            accuracy[cl, sample] = accuracy_score(labels[sl], preds[sl])
+            chance[cl, sample] = accuracy_score(labels[sl], rpreds[sl])
+    foc = accuracy/chance
+
+    return cluster_sizes, foc, accuracy, chance
+
+
+def plot_line(x, med, lower, upper, ax=None, color='red', label=None, xlabel=None, ylabel=None, title=None):
+    if ax is None:
+        ax = plt.gca()
+    ax.errorbar(x, med, yerr=[med-lower,upper-med], color=color, fmt='-o', label=label)
+    if title is not None:
+        ax.set_title(title, fontsize=20)
+    if xlabel is not None:
+        ax.set_xlabel(xlabel)
+    if ylabel is not None:
+        ax.set_ylabel(ylabel)
+
+
+def flatten(noc, foc, filter_inf=True):
+    x_train = np.repeat(noc, foc.shape[1])
+    y_train = np.ravel(foc)
+    if filter_inf:
+        good_pts = np.where(np.logical_not(np.isinf(y_train)))[0]
+        x_train = x_train[good_pts]
+        y_train = y_train[good_pts]
+    return x_train, y_train
+
+
+def filter_iqr(noc, foc, s=1.5):
+    mask = np.zeros(foc.size, dtype=bool)
+    lower = np.zeros(noc.shape[0])
+    med = np.zeros(noc.shape[0])
+    upper = np.zeros(noc.shape[0])
+    step = foc.shape[1]
+    b = 0
+    for i, c in enumerate(noc):
+        lower[i], upper[i] = np.percentile(foc[i], [25, 75])
+        e = step*(i+1)
+        mask[b:e] = np.logical_and(foc[i] >= lower[i]*(1-s), foc[i] <= upper[i]*(1+s))
+        b = e
+    x_train, y_train = flatten(noc, foc, filter_inf=False)
+    x_train = x_train[mask]
+    y_train = y_train[mask]
+    return x_train, y_train
+
+
+def summarize_flattened(x, y, iqr=False):
+    uniq = np.unique(x)
+    lower = np.zeros(uniq.shape[0])
+    med = np.zeros(uniq.shape[0])
+    upper = np.zeros(uniq.shape[0])
+    q = 1.96
+    for i, c in enumerate(uniq):
+        idx = x == c
+        if iqr:
+            lower[i], med[i], upper[i] = np.percentile(y[idx], [25, 50, 75])
+        else:
+            med[i] = np.mean(y[idx])
+            sd = np.std(y[idx])
+            lower[i] = med[i] - sd
+            upper[i] = med[i] + sd
+    return uniq, lower, med, upper
+
+
+def linefit_func(x, a, b, c):
+    return a + b * np.exp(c * x)
+
+def ttest_min(noc_filt, foc_filt, mean, std, nobs, pvalue_cutoff):
+    uniq = np.unique(noc_filt)
+    pvalue = np.zeros(uniq.shape[0])
+
+    for i, c in enumerate(uniq):
+        idx = noc_filt == c
+        _foc = foc_filt[idx]
+        result = sps.ttest_ind_from_stats(mean1=np.mean(_foc),
+                                          std1=np.std(_foc),
+                                          nobs1=_foc.shape[0],
+                                          mean2=mean,
+                                          std2=std,
+                                          nobs2=nobs,
+                                          equal_var=False)
+        _, pvalue[i] = result
+
+    min_noc = np.where(pvalue > pvalue_cutoff)[0]
+    if min_noc.shape[0] > 0:
+        min_noc = min_noc[0]
+    else:
+        min_noc = -1
+    return min_noc
+
+
+def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.025)), spread_asm=False):
+    uniq = np.unique(noc_filt)
+
+    if spread_asm:
+        asm_upper = mean + n_sigma*std
+        asm_lower = mean - n_sigma*std
+    else:
+        asm_upper = mean
+        asm_lower = mean
+
+    min_noc = -1
+    for i, c in enumerate(uniq):
+        idx = noc_filt == c
+        _foc = foc_filt[idx]
+        foc_mean = np.mean(_foc)
+        foc_std = np.std(_foc)
+        foc_upper = foc_mean + n_sigma*foc_std
+        foc_lower = foc_mean - n_sigma*foc_std
+
+        if asm_upper > foc_lower and foc_upper > asm_lower:
+            min_noc = i
+            break
+
+    return min_noc
+
+def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, ttest_cutoff=True, ax=None, f_kwargs=None, a_kwargs=None, n_sigma=None, ci=0.95, spread_asm=False):
+    # clean up and summarize data
+    noc_filt, foc_filt = filter_iqr(noc, foc)
+    fit_obs = noc_filt.shape[0]
+
+    x_fit, y_fit = noc_filt, foc_filt
+    lower, med, upper = None, None, None
+    if fit_summary:
+        _, lower, med, upper = summarize_flattened(noc_filt, foc_filt, iqr=False)
+        fit_obs = lower.shape[0]
+        x_fit, y_fit = _, med
+
+    popt, pcov = spo.curve_fit(linefit_func, x_fit, y_fit, p0=np.array([-1, -1, 0]))
+
+    lim = popt[0]
+    lim_sd = np.sqrt(pcov[0,0])
+
+    if n_sigma is None:
+        n_sigma = np.abs(sps.norm.ppf((1-ci)/2))
+
+    if ttest_cutoff:
+        min_noc = ttest_min(noc_filt, foc_filt, lim, lim_sd, x_fit.shape[0], pvalue_cutoff)
+    else:
+        min_noc = ci_overlap_min(noc_filt, foc_filt, lim, lim_sd, n_sigma=n_sigma, spread_asm=spread_asm)
+
+
+    if plot:
+        if med is None:
+            _, lower, med, upper = summarize_flattened(noc_filt, foc_filt, iqr=False)
+
+        plot_line(noc, med, lower, upper)
+        if ax is None:
+            ax = plt.gca()
+        x_plot = np.linspace(np.min(noc_filt), np.max(noc_filt), 1000)
+        y_plot = linefit_func(x_plot, *popt)
+
+        _kwargs = dict(color='black', ls='--')
+        if isinstance(f_kwargs, dict):
+            _kwargs.update(f_kwargs)
+        ax.plot(x_plot, y_plot, **_kwargs)
+
+        _kwargs = dict(color='gray', label='limit of linefit: %.3f' % lim)
+        if isinstance(a_kwargs, dict):
+            _kwargs.update(a_kwargs)
+
+        ax.plot(x_plot, np.repeat(lim, 1000), **_kwargs)
+        q = 1.96
+        ax.fill_between(x_plot, np.repeat(lim-n_sigma*lim_sd, 1000), np.repeat(lim+n_sigma*lim_sd, 1000),
+                        color='lightgray', label="limit 95%% CI: %.3f" % lim_sd)
+
+    return min_noc

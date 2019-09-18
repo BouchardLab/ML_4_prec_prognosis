@@ -2,33 +2,25 @@ import sys
 import logging
 import math
 import numpy as np
+from sklearn.preprocessing import LabelEncoder
 
-def get_logger(logger_name, comm=None, path=None, quiet=False):
-    rank, size = 1, 1
-    if comm is not None:
-        rank = comm.Get_rank()
-        size = comm.Get_size()
-    logfmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    if size > 1:
-        from activ.mpitools import MPILogHandler
-        logger_name = logger_name + "-%d" % rank
-        if path is None:
-            handler = logging.StreamHandler(sys.stdout)
-        else:
-            handler = MPILogHandler(path, comm)
-    else:
-        stream = sys.stdout if path is None else open(path, 'w')
-        handler = logging.StreamHandler(stream)
-    handler.setFormatter(logging.Formatter(logfmt))
-    logger = logging.getLogger(logger_name)
-    logger.addHandler(handler)
-
-    log_level = logging.INFO
-    if quiet:
-        log_level = logging.WARNING
-    logger.setLevel(log_level)
+def get_logger(path=None, name=None, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s'):
+    formatter = logging.Formatter(fmt)
+    logger = logging.Logger(name)
+    if path is not None:
+        file_handler = logging.FileHandler(path)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    logger.setLevel(logging.INFO)
     return logger
 
+def read_labels(dset):
+    classes = dset.attrs['classes'].astype('U')
+    enc = LabelEncoder().fit(classes)
+    return enc.inverse_transform(dset[:]), classes
 
 def get_start_portion(rank, size, n):
     portion = math.ceil((n - rank) / size)

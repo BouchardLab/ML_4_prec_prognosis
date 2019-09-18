@@ -79,7 +79,12 @@ if size > 1:
 
 start, portion = get_start_portion(rank, size, n_iters)
 
-logger = get_logger("bootstrap_umap_clustering", comm=comm)
+fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+if size > 1:
+    rank_str = "%02d" % rank
+    fmt = '%(asctime)s - %(name)s ' + rank_str + ' - %(levelname)s - %(message)s'
+logger = get_logger(name="subsample_umap_clustering", fmt=fmt)
+
 
 labels, preds, rlabels, rpreds = subsample_umap_clustering(pdata.biomarkers, data.outcomes, cluster_sizes,
                                                            portion, args.fraction, agg=args.aggregate,

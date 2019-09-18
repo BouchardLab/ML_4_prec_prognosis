@@ -13,6 +13,11 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 setup(
     name='activ',
 
+    scripts=['bin/run_bootstrap_umap_clustering.py',
+             'bin/run_jackknife_umap_clustering.py',
+             'bin/run_subsample_umap_clustering.py',
+             'bin/make_blob_data.py'],
+
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
