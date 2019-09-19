@@ -672,10 +672,14 @@ def read_data(path):
     return cluster_sizes, foc, accuracy, chance
 
 
-def plot_line(x, med, lower, upper, ax=None, color='red', label=None, xlabel=None, ylabel=None, title=None):
+def plot_line(x, med, lower=None, upper=None, ax=None, color='red', label=None, xlabel=None, ylabel=None, title=None):
     if ax is None:
+        import matplotlib.pyplot as plt
         ax = plt.gca()
-    ax.errorbar(x, med, yerr=[med-lower,upper-med], color=color, fmt='-o', label=label)
+    eb_kwargs = dict(x=x, y=med, color=color, fmt='-o', label=label)
+    if lower is not None and upper is not None:
+        eb_kwargs['yerr'] = [med-lower,upper-med]
+    ax.errorbar(**eb_kwargs)
     if title is not None:
         ax.set_title(title, fontsize=20)
     if xlabel is not None:
@@ -757,24 +761,28 @@ def ttest_min(noc_filt, foc_filt, mean, std, nobs, pvalue_cutoff):
     return min_noc
 
 
-def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.025)), spread_asm=False):
+def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.025)), spread_asm=False, spread_foc=True):
     uniq = np.unique(noc_filt)
 
+    asm_upper = mean
+    asm_lower = mean
+
     if spread_asm:
-        asm_upper = mean + n_sigma*std
-        asm_lower = mean - n_sigma*std
-    else:
-        asm_upper = mean
-        asm_lower = mean
+        asm_std = n_sigma*std
+        asm_upper += asm_std
+        asm_lower -= asm_std
 
     min_noc = -1
     for i, c in enumerate(uniq):
         idx = noc_filt == c
         _foc = foc_filt[idx]
         foc_mean = np.mean(_foc)
-        foc_std = np.std(_foc)
-        foc_upper = foc_mean + n_sigma*foc_std
-        foc_lower = foc_mean - n_sigma*foc_std
+        foc_std = n_sigma*np.std(_foc)
+        foc_upper = foc_mean
+        foc_lower = foc_mean
+        if spread_foc:
+            foc_upper += foc_std
+            foc_lower -= foc_std
 
         if asm_upper > foc_lower and foc_upper > asm_lower:
             min_noc = i
