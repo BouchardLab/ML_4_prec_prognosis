@@ -761,7 +761,7 @@ def ttest_min(noc_filt, foc_filt, mean, std, nobs, pvalue_cutoff):
     return min_noc
 
 
-def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.025)), spread_asm=False, spread_foc=True):
+def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.025)), use_median=False, spread_asm=False, spread_foc=True):
     uniq = np.unique(noc_filt)
 
     asm_upper = mean
@@ -772,17 +772,27 @@ def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.
         asm_upper += asm_std
         asm_lower -= asm_std
 
+    if use_median and spread_foc:
+        raise ValueError("Cannot use spread FOC using median")
+    if use_median:
+        print("using median")
+
     min_noc = -1
     for i, c in enumerate(uniq):
         idx = noc_filt == c
         _foc = foc_filt[idx]
-        foc_mean = np.mean(_foc)
-        foc_std = n_sigma*np.std(_foc)
-        foc_upper = foc_mean
-        foc_lower = foc_mean
-        if spread_foc:
-            foc_upper += foc_std
-            foc_lower -= foc_std
+        if use_median:
+            foc_mean = np.median(_foc)
+            foc_upper = foc_mean
+            foc_lower = foc_mean
+        else:
+            foc_mean = np.mean(_foc)
+            foc_upper = foc_mean
+            foc_lower = foc_mean
+            if spread_foc:
+                foc_std = n_sigma*np.std(_foc)
+                foc_upper += foc_std
+                foc_lower -= foc_std
 
         if asm_upper > foc_lower and foc_upper > asm_lower:
             min_noc = i
@@ -790,7 +800,7 @@ def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.
 
     return min_noc
 
-def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, ttest_cutoff=True, ax=None, f_kwargs=None, a_kwargs=None, n_sigma=None, ci=0.95, spread_asm=False):
+def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, ttest_cutoff=True, ax=None, f_kwargs=None, a_kwargs=None, n_sigma=None, ci=0.95, use_median=False, spread_asm=False, spread_foc=True):
     # clean up and summarize data
     noc_filt, foc_filt = filter_iqr(noc, foc)
     fit_obs = noc_filt.shape[0]
@@ -813,7 +823,7 @@ def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, ttest_cu
     if ttest_cutoff:
         min_noc = ttest_min(noc_filt, foc_filt, lim, lim_sd, x_fit.shape[0], pvalue_cutoff)
     else:
-        min_noc = ci_overlap_min(noc_filt, foc_filt, lim, lim_sd, n_sigma=n_sigma, spread_asm=spread_asm)
+        min_noc = ci_overlap_min(noc_filt, foc_filt, lim, lim_sd, n_sigma=n_sigma, spread_asm=spread_asm, spread_foc=spread_foc, use_median=use_median)
 
 
     if plot:
