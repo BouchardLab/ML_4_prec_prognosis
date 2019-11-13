@@ -7,6 +7,9 @@ import os
 import scipy
 from sklearn.metrics import accuracy_score
 
+import matplotlib.colors as mpc
+import seaborn as sns
+
 def heatmap(data, row_labels=None, col_labels=None, ax=None, show_cbar=True,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
             title=None, **kwargs):
@@ -101,6 +104,25 @@ def plot_confusion_matrix(cm, classes,
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     plt.tight_layout()
+
+
+def multi_stemplot(values, ax=None, labels=None, palette='Set1'):
+    if len(values.shape) == 1:
+        values = values.reshape(1, -1)
+    if ax is None:
+        ax = plt.gca()
+    colors = [mpc.to_hex(c) for c in sns.color_palette(palette, values.shape[0])]
+    shift = np.max(np.abs(values))*2.1
+    for i in range(values.shape[0]):
+        ax.stem(values[i]+i*shift, markerfmt=' ', basefmt=colors[i], linefmt=colors[i], bottom=i*shift)
+    pos = np.arange(values.shape[0]) * shift
+    ax.get_xaxis().set_ticks([])
+    yaxis = ax.get_yaxis()
+    yaxis.set_ticks(pos)
+    ticklabels = np.arange(values.shape[0])
+    if labels is not None:
+        ticklabels = labels
+    yaxis.set_ticklabels(ticklabels)
 
 def nmf_bases_heatmap(data, col_labels, sort=True, ax=None,
             cumsum_thresh=0.99,
