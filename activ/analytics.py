@@ -114,7 +114,12 @@ def multi_stemplot(values, ax=None, labels=None, palette='Set1'):
     colors = [mpc.to_hex(c) for c in sns.color_palette(palette, values.shape[0])]
     shift = np.max(np.abs(values))*2.1
     for i in range(values.shape[0]):
-        ax.stem(values[i]+i*shift, markerfmt=' ', basefmt=colors[i], linefmt=colors[i], bottom=i*shift)
+        ax.stem(values[i]+i*shift,
+                use_line_collection=True,
+                markerfmt=' ',
+                basefmt=colors[i],
+                linefmt=colors[i],
+                bottom=i*shift)
     pos = np.arange(values.shape[0]) * shift
     ax.get_xaxis().set_ticks([])
     yaxis = ax.get_yaxis()
