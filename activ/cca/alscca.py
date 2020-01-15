@@ -3,7 +3,10 @@ from sklearn.preprocessing import scale, normalize
 from sklearn.linear_model import Lasso
 from sklearn.base import BaseEstimator
 
-class AlternatingSparseCCA(BaseEstimator):
+class ALSCCA(BaseEstimator):
+    """
+    Alternating Least Squares Canonical Correlation Analysis
+    """
 
 
     def __init__(self, X_lm=None, Y_lm = None, random_state=None, n_components=1, max_iters=100, alpha=0.1):
