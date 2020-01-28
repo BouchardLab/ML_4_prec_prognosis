@@ -8,8 +8,11 @@ from activ.clustering import read_data, get_noc
 import argparse
 
 parser = argparse.ArgumentParser()
+parser.add_argument('files', type=str, nargs='+', help='the files to summarize')
 parser.add_argument('-o', '--output', type=str, default='simdata_sweep_results.h5', help='the output file')
 parser.add_argument('--spread_asm', action='store_true', default=False, help='incorporate asymptote uncertainty when estimating noc')
+parser.add_argument('--spread_foc', action='store_true', default=False, help='incorporate FOC uncertainty when estimating noc')
+parser.add_argument('--use_median', action='store_true', default=False, help='use median when calculating FOC central tendancy')
 
 args = parser.parse_args()
 
@@ -21,31 +24,32 @@ est_noc_99ci = list()
 est_ttest_5 = list()
 est_ttest_1 = list()
 iters = list()
-for i, path in enumerate(glob.glob('*.out.h5')):
+for i, path in enumerate(args.files):
     print(i, path)
     noc, iter = list(map(int, path[:-7].split('_')[1:3]))
 
     true_noc.append(noc)
     iters.append(iter)
     _noc, _foc, _accuracy, _chance = read_data(path)
-
-    noc_idx = get_noc(_noc, _foc, plot=False, fit_summary=True, ttest_cutoff=False, n_sigma=1.0, spread_asm=args.spread_asm)
+    kwargs= dict(noc=_noc,
+                 foc=_foc,
+                 plot=False,
+                 fit_summary=True,
+                 ttest_cutoff=False,
+                 use_median=args.use_median,
+                 spread_asm=args.spread_asm,
+                 spread_foc=args.spread_foc)
+    noc_idx = get_noc(n_sigma=1.0, **kwargs)
     est_noc_1sd.append(_noc[noc_idx])
 
-    noc_idx = get_noc(_noc, _foc, plot=False, fit_summary=True, ttest_cutoff=False, ci=0.38, spread_asm=args.spread_asm)
+    noc_idx = get_noc(ci=0.38, **kwargs)
     est_noc_38ci.append(_noc[noc_idx])
 
-    noc_idx = get_noc(_noc, _foc, plot=False, fit_summary=True, ttest_cutoff=False, ci=0.95, spread_asm=args.spread_asm)
+    noc_idx = get_noc(ci=0.95, **kwargs)
     est_noc_95ci.append(_noc[noc_idx])
 
-    noc_idx = get_noc(_noc, _foc, plot=False, fit_summary=True, ttest_cutoff=False, ci=0.99, spread_asm=args.spread_asm)
+    noc_idx = get_noc(ci=0.99, **kwargs)
     est_noc_99ci.append(_noc[noc_idx])
-
-    noc_idx = get_noc(_noc, _foc, plot=False, fit_summary=True, ttest_cutoff=True, pvalue_cutoff=0.05, spread_asm=args.spread_asm)
-    est_ttest_5.append(_noc[noc_idx])
-
-    noc_idx = get_noc(_noc, _foc, plot=False, fit_summary=True, ttest_cutoff=True, pvalue_cutoff=0.01, spread_asm=args.spread_asm)
-    est_ttest_1.append(_noc[noc_idx])
 
 with h5py.File(args.output, 'w') as f:
     f.create_dataset('true_noc', data=true_noc)
