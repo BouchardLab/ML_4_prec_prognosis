@@ -7,6 +7,11 @@ import os
 import scipy
 from sklearn.metrics import accuracy_score
 
+from scipy.stats import pearsonr
+
+from sklearn.model_selection import cross_val_predict
+
+
 def heatmap(data, row_labels=None, col_labels=None, ax=None, show_cbar=True,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
             title=None, **kwargs):
@@ -69,38 +74,6 @@ def heatmap(data, row_labels=None, col_labels=None, ax=None, show_cbar=True,
 
     return im, cbar
 
-
-def plot_confusion_matrix(cm, classes,
-                          normalize=False,
-                          title='Confusion matrix',
-                          cmap=plt.cm.binary):
-    """
-    This function prints and plots the confusion matrix.
-    Normalization can be applied by setting `normalize=True`.
-    """
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        print("Normalized confusion matrix")
-    else:
-        print('Confusion matrix, without normalization')
-
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-    tick_marks = np.arange(len(classes))
-    plt.xticks(tick_marks, classes, rotation=45)
-    plt.yticks(tick_marks, classes)
-
-    fmt = '.2f' if normalize else 'd'
-    thresh = cm.max() / 2.
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, format(cm[i, j], fmt),
-                 horizontalalignment="center",
-                 color="white" if cm[i, j] > thresh else "black")
-
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
-    plt.tight_layout()
 
 def nmf_bases_heatmap(data, col_labels, sort=True, ax=None,
             cumsum_thresh=0.99,
@@ -188,9 +161,11 @@ def nmf_bases_heatmap(data, col_labels, sort=True, ax=None,
     plt.setp(ax.get_xticklabels(), rotation=90, ha="right",
             rotation_mode="anchor")
 
+
 def nmf_heatmap(data, labels, numclusters):
     reordered = data[:,labels]
     heatmap(reordered, list(range(1,numclusters+1)), labels+1,xlab='NMF Factors', ylab='Number of Clusters', title='NMF Weights Heatmap')
+
 
 def nmf_boxplot(data, labels):
     ax = plt.gca()
@@ -200,6 +175,7 @@ def nmf_boxplot(data, labels):
     ax.set_title('NMF Weights Boxplot')
     labels2 = labels+np.ones(len(labels), dtype=np.int)
     ax.set_xticklabels(labels2)
+
 
 def outcomes_histogram(oc_data, oc_features, indices, nrows=1, ncols=1, figsize=(6,6)):
     fig, ax = plt.subplots(nrows,ncols,sharey=True,figsize=figsize)
@@ -224,9 +200,9 @@ def conf_alliter(size, predicted, actual, iterations):
         confalliter.append(conf)
     return confalliter
 
+
 def accuracy(mat):
     return mat.trace()/mat.sum()
-
 
 
 def plot_clustering_results(input_file, plot_this, specific_plot_name=None):
@@ -289,6 +265,7 @@ def plot_clustering_results(input_file, plot_this, specific_plot_name=None):
         plt.ylabel("Normalized IQR", fontsize=20)
     plt.savefig(save_name)
 
+
 def plot_clustering_results_activ_data(group_name, plot_this, specific_plot_name=None):
     with h5py.File('/Users/ahyeon/data/activ/activ_data.h5','r') as hf:
         data = hf['umap_clustering/{}'.format(group_name)]
@@ -348,6 +325,7 @@ def plot_clustering_results_activ_data(group_name, plot_this, specific_plot_name
             plt.xlabel("Cluster sizes", fontsize=20)
             plt.ylabel("Normalized IQR", fontsize=20)
 
+
 def return_plot_items(path):
     f = h5py.File(path, mode='r')
     try:
@@ -387,6 +365,7 @@ def return_plot_items(path):
     rel_iqr = iqr/np.median(foc, axis=1)
     return foc, iqr, rel_iqr, cluster_sizes
 
+
 def cluster_plot(path, plot_this, title, ax=None):
     foc, iqr, rel_iqr, cluster_sizes = return_plot_items(path)
     if plot_this == 'foc':
@@ -405,3 +384,40 @@ def cluster_plot(path, plot_this, title, ax=None):
         ax.set_xlabel("Cluster sizes")
         ax.set_ylabel("Relative IQR")
 
+
+def cv_r2_score(regressor, x, y, cv=5):
+    x, y = _check_X_y(x, y)
+    y_pred = cross_val_predict(regressor, x, y, cv=cv)
+    cv_r, cv_p = pearsonr(y, y_pred)
+    y_pred = regressor.fit(x,y).predict(x)
+    raw_r, raw_p = pearsonr(y, y_pred)
+    return raw_r**2, raw_p, cv_r**2, cv_p
+
+
+def linefit(regressor, x, y):
+    x, y = _check_X_y(x, y)
+    regressor.fit(x, y)
+    m = regressor.coef_[0]
+    b = regressor.intercept_
+
+    mn_fit = (min(y) - b)/m
+    mx_fit = (max(y) - b)/m
+    mn, mx = min(min(x), mn_fit), max(max(x), mx_fit)
+
+    mn = np.sign(mn) * 1.1 * np.abs(mn)
+    mx = np.sign(mx) * 1.1 * np.abs(mx)
+    xfit = np.linspace(mn,mx, 1000).reshape((1000,1))
+    yfit = regressor.predict(xfit)
+    return xfit, yfit
+
+
+def _check_X_y(x, y):
+    x_ret = x
+    y_ret = y
+    if len(x.shape) == 1:
+        x_ret = x.reshape(x.shape[0], 1)
+    if len(y.shape) == 2:
+        if y.shape[1] != 1:
+            raise ValueError('y must be 1D: shape = %s' % str(y.shape))
+        y_ret = y.reshape(y.shape[0])
+    return x_ret, y_ret
