@@ -296,7 +296,7 @@ if __name__ == '__main__':
 
 
     plt.figure(figsize=(21.5, 7.5))
-    plot_measure_leverage(pca=pca, measures=Xdf.columns, path=_p('measure_leverage.png'))
+    plot_measure_leverage(pca=pca, measures=Xdf.columns, path=_p('measure_leverage.png'), dpi=300)
 
     Xpca, pca_df = top_components(Xdf, pca)
 
@@ -306,8 +306,8 @@ if __name__ == '__main__':
 
     plt.figure(figsize=(8, 8))
 
-    plot_umap(emb, age, sex, path=_p('umap_summary.png'))
+    plot_umap(emb, age, sex, path=_p('umap_summary.png'), dpi=300)
 
     plt.figure(figsize=(7,7))
 
-    plot_gcs(emb, metadata_df['GCSMildModSevereRecode'], path=_p('umap_summary_gcs.png'))
+    plot_gcs(emb, metadata_df['GCSMildModSevereRecode'], path=_p('umap_summary_gcs.png'), dpi=300)
