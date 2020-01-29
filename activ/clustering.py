@@ -14,6 +14,7 @@ import numpy as np
 import scipy.stats as sps
 import scipy.optimize as spo
 from sklearn.metrics import accuracy_score
+from sklearn.utils import check_random_state
 
 from sklearn.ensemble import RandomForestClassifier as RFC
 from sklearn.model_selection import cross_val_score, cross_val_predict
@@ -21,7 +22,6 @@ from sklearn.model_selection import cross_val_score, cross_val_predict
 from umap import UMAP
 from .data_normalization import data_normalization
 from .sampler import JackknifeSampler, BootstrapSampler, SubSampler
-from .utils import check_random_state
 
 def path_tuple(type_name, **kwargs):
     from collections import namedtuple
@@ -148,6 +148,38 @@ def log(logger, msg):
     if logger is not None:
         logger.info(msg)
 
+def _cluster_and_predict(X, dist, cluster_sizes, **kwargs):
+    """
+    Cluster data using distance matrix, and predict resulting labels
+
+    Args:
+        X (array-like):                     predictor samples
+        dist (array-like):                  condensed distance matrix to use for clustering
+        cluster_sizes (array-like:          the numbers of clusters to compute
+        random_state (int, RandomState):    the random state to use
+        metric (str):                       distance metric to use if response samples have
+                                            been passed in
+    """
+    rand = check_random_state(kwargs.get('random_state', None))
+    metric = kwargs.get('metric', 'euclidean')
+    logger = kwargs.get('logger', None)
+    cv = kwargs.get('cv', 5)
+    classifier = kwargs.get('classifier', RFC(n_estimators=100, random_state=rand))
+    if len(dist.shape) != 1:    # assume samples have been passed in
+        if X.shape[0] != dist.shape[0]:
+            raise ValueError("X and dist must have the same number of samples: %d != %d" % (X.shape[0], dist.shape[0]))
+        dist = pdist(dist, metric=metric)
+    true_labels = cut_tree(linkage(dist, method='ward'), n_clusters=cluster_sizes)
+    rand_labels = np.zeros(true_labels.shape, dtype=true_labels.dtype)
+    preds = np.zeros(true_labels.shape, dtype=true_labels.dtype)
+    chances = np.zeros(true_labels.shape, dtype=true_labels.dtype)
+    for nclust in range(len(cluster_sizes)):
+        log(logger, 'predicting labels from %d clusters' % cluster_sizes[nclust])
+        rand_labels[:, nclust] = rand.permutation(true_labels[:, nclust])
+        preds[:, nclust] = cross_val_predict(classifier, X, true_labels[:, nclust], cv=cv, n_jobs=1)
+        chances[:, nclust] = cross_val_predict(classifier, X, rand_labels[:, nclust], cv=cv, n_jobs=1)
+    return true_labels, rand_labels, preds, chances
+
 def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_sizes, logger, classifier, cv, agg):
     """
     Run a UMAP clustering sweep
@@ -174,16 +206,7 @@ def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_size
             predictions of randomized labels for each sample of each boostrap replicate
     """
     dist = compute_umap_distance(y, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs, n_iters=n_umap_iters, agg=agg)
-    true_labels = cut_tree(linkage(dist, method='ward'), n_clusters=cluster_sizes)
-    rand_labels = np.zeros(true_labels.shape, dtype=true_labels.dtype)
-    preds = np.zeros(true_labels.shape, dtype=true_labels.dtype)
-    chances = np.zeros(true_labels.shape, dtype=true_labels.dtype)
-    for nclust in range(len(cluster_sizes)):
-        log(logger, 'predicting labels from %d clusters' % cluster_sizes[nclust])
-        rand_labels[:, nclust] = rand.permutation(true_labels[:, nclust])
-        preds[:, nclust] = cross_val_predict(classifier, X, true_labels[:, nclust], cv=cv, n_jobs=1)
-        chances[:, nclust] = cross_val_predict(classifier, X, rand_labels[:, nclust], cv=cv, n_jobs=1)
-    return true_labels, rand_labels, preds, chances
+    return _cluster_and_predict(X, dist, rand)
 
 def _run_umap_clustering(X, y, cluster_sizes, sampler, agg='median', metric='euclidean',
                         classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
