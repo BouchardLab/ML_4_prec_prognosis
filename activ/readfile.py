@@ -17,6 +17,14 @@ class TrackTBIFile(object):
     __pid = 'patient_ids'
 
     def __init__(self, filename, subgroup=None):
+        idx = filename.rfind('.h5')
+        if idx > -1:
+            idx += 3
+            if subgroup is not None:
+                warn('ignoring subgroup keyword argument, using '
+                     f'{filename[idx:]} from filename argument instead')
+            filename, subgroup = filename[:idx], filename[idx:]
+
         self.filename = filename
         with _h5py.File(self.filename, 'r') as f:
             g = f
