@@ -20,8 +20,8 @@ from sklearn.ensemble import RandomForestClassifier as RFC
 from sklearn.model_selection import cross_val_score, cross_val_predict
 
 from umap import UMAP
-from .data_normalization import data_normalization
-from .sampler import JackknifeSampler, BootstrapSampler, SubSampler
+from ..data_normalization import data_normalization
+from ..sampler import JackknifeSampler, BootstrapSampler, SubSampler
 
 def path_tuple(type_name, **kwargs):
     from collections import namedtuple
