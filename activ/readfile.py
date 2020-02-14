@@ -16,20 +16,23 @@ class TrackTBIFile(object):
     __oc_feat = 'outcome_features'
     __pid = 'patient_ids'
 
-    def __init__(self, filename):
+    def __init__(self, filename, subgroup=None):
         self.filename = filename
         with _h5py.File(self.filename, 'r') as f:
-            self.biomarkers = f[self.__bm][:]
-            self.outcomes = f[self.__oc][:]
+            g = f
+            if subgroup is not None:
+                g = f[subgroup]
+            self.biomarkers = g[self.__bm][:]
+            self.outcomes = g[self.__oc][:]
             self.biomarker_features = None
             self.outcome_features = None
             self.patient_ids = None
-            if self.__bm_feat in f:
-                self.biomarker_features = self.__decode(f[self.__bm_feat])
-            if self.__oc_feat in f:
-                self.outcome_features = self.__decode(f[self.__oc_feat])
-            if self.__pid in f:
-                self.patient_ids = self.__decode(f[self.__pid])
+            if self.__bm_feat in g:
+                self.biomarker_features = self.__decode(g[self.__bm_feat])
+            if self.__oc_feat in g:
+                self.outcome_features = self.__decode(g[self.__oc_feat])
+            if self.__pid in g:
+                self.patient_ids = self.__decode(g[self.__pid])
 
     def __decode(self, dset):
         if _h5py.check_dtype(vlen=dset.dtype) == bytes:
