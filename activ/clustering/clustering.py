@@ -205,8 +205,15 @@ def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_size
         chances - shape (n_samples, n_cluster_sizes)
             predictions of randomized labels for each sample of each boostrap replicate
     """
+    log(logger, 'computing UMAP distance matrix')
     dist = compute_umap_distance(y, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs, n_iters=n_umap_iters, agg=agg)
-    return _cluster_and_predict(X, dist, rand)
+    kwargs = dict(
+        random_state=rand,
+        logger=logger,
+        classifier=classifier,
+        cv=cv,
+    )
+    return _cluster_and_predict(X, dist, cluster_sizes, **kwargs)
 
 def _run_umap_clustering(X, y, cluster_sizes, sampler, agg='median', metric='euclidean',
                         classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
@@ -285,7 +292,6 @@ def _run_umap_clustering(X, y, cluster_sizes, sampler, agg='median', metric='euc
     for i, (X_p, y_p) in enumerate(sampler.sample(X, y)):
         uckwargs['y'] = y_p
         uckwargs['X'] = X_p
-        log(logger, 'computing UMAP distance matrix')
         true_labels[i], rand_labels[i], preds[i], chances[i] = _umap_cluster(**uckwargs)
     return true_labels, preds, rand_labels, chances
 
@@ -352,7 +358,7 @@ def jackknifed_umap_clustering(X, y, cluster_sizes, indices=None, agg='median', 
     return _run_umap_clustering(**kwargs)
 
 
-def bootstrapped_umap_clustering(X, y, cluster_sizes, n_iters, agg='median', metric='euclidean',
+def bootstrapped_umap_clustering(X, y, cluster_sizes, n_iters=None, agg='median', metric='euclidean',
                               classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
                               random_state=None, umap_kwargs=dict(), logger=None):
 
@@ -414,7 +420,7 @@ def bootstrapped_umap_clustering(X, y, cluster_sizes, n_iters, agg='median', met
     return _run_umap_clustering(**kwargs)
 
 
-def subsample_umap_clustering(X, y, cluster_sizes, n_iters, subsample_size, agg='median', metric='euclidean',
+def subsample_umap_clustering(X, y, cluster_sizes, n_iters=None, subsample_size=None, agg='median', metric='euclidean',
                              classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
                              random_state=None, umap_kwargs=dict(), logger=None):
     """
@@ -874,3 +880,138 @@ def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, ttest_cu
                         color='lightgray', label="limit 95%% CI: %.3f" % lim_sd)
 
     return min_noc
+
+if __name__ == '__main__':
+
+    from activ import load_data
+    import time
+    import math
+    from mpi4py import MPI
+    import h5py
+
+    from ..readfile import TrackTBIFile
+    from ..utils import get_logger, get_start_portion, int_list, check_seed
+
+    from argparse import ArgumentParser
+
+    samplers = {
+        'subsample': subsample_umap_clustering,
+        'bootstrap': bootstrapped_umap_clustering,
+        'jackknife': jackknifed_umap_clustering
+    }
+
+    parser = ArgumentParser(usage="%(prog)s [options] output_h5")
+
+
+    parser.add_argument('output', type=str, help='the output HDF5 file')
+
+    parser.add_argument('-s', '--seed', type=check_seed, help='the seed to use for running the pipeline', default=None)
+
+    parser.add_argument("-d", "--data", type=str, help="the Track TBI dataset file. use activ.load_data() by default", default=None)
+    parser.add_argument("-p", "--pdata", type=str, help="the Track TBI dataset file to use for predictions. use activ.load_data() by default", default=None)
+    parser.add_argument("-i", "--iterations", type=int, help="the number of subsampling iterations to run", default=50)
+    parser.add_argument("-f", "--fraction", type=float, help="the fraction of the original dataset to use with sampler=subsample", default=0.9)
+    parser.add_argument("-c", "--cluster_sizes", type=int_list, help="a comma-separated list of the cluster sizes",
+                        default=list(range(2, 15)))
+    parser.add_argument("-u", "--umap_iters", type=int, help="the number of iterations to do with UMAP", default=30)
+    parser.add_argument("-a", "--aggregate", type=str, help="type of aggregating", default='median')
+    parser.add_argument("-D", "--dead", action='store_true', help="use dead data", default=False)
+    parser.add_argument('-S', '--sampler', type=str, choices=list(samplers.keys()), help='the sampler to use', default='subsample')
+
+    args = parser.parse_args()
+
+
+    data = None         # source of data for building clusters
+    pdata = None        # source of data for predicting cluster labels
+    if args.data is None:
+        if args.dead is True:
+            data = load_data(dead=True)
+        else:
+            data = load_data()
+    else:
+        data = TrackTBIFile(args.data)
+
+    if args.pdata is None:
+        if args.dead is True:
+            pdata = load_data(dead=True)
+        else:
+            pdata = load_data()
+    else:
+        pdata = TrackTBIFile(args.pdata)
+
+
+    fkwargs = dict()
+
+    cluster_sizes = args.cluster_sizes
+    n_iters = args.iterations
+
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+
+    seed = args.seed
+    if seed == None:
+        seed = int(time.time())
+
+    if size > 1:
+        seed = comm.bcast(seed, root=0)
+        seed += rank
+        fkwargs['driver'] = 'mpio'
+        fkwargs['comm'] = comm
+
+    start, portion = get_start_portion(rank, size, args.iterations)
+
+    fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    if size > 1:
+        rank_str = "%02d" % rank
+        fmt = '%(asctime)s - %(name)s ' + rank_str + ' - %(levelname)s - %(message)s'
+    logger = get_logger(name="umap_clustering", fmt=fmt)
+
+    kwargs = dict(agg=args.aggregate, n_umap_iters=args.umap_iters, logger=logger)
+    shape=None
+    if args.sampler == 'jackknife':
+        kwargs['indices'] =list(range(start, start+portion))
+        shape = (n, n-1, len(cluster_sizes))
+    else:
+        kwargs['n_iters'] = portion
+        shape = (args.iterations, args.iterations, len(cluster_sizes))
+        if args.sampler == 'subsample':
+            kwargs['subsample_size'] = args.fraction
+
+    labels, preds, rlabels, rpreds = samplers[args.sampler](pdata.biomarkers, data.outcomes, cluster_sizes, **kwargs)
+
+    shape = (args.iterations, labels.shape[1], len(cluster_sizes))
+
+    if size > 1:
+        comm.barrier()
+
+    if rank == 0:
+        logger.info('writting results')
+
+    fkwargs['mode'] = 'w'
+    f = h5py.File(args.output, **fkwargs)
+
+    labels_dset = f.create_dataset('labels', dtype=int, shape=shape)
+    preds_dset = f.create_dataset('preds', dtype=int, shape=shape)
+    rlabels_dset = f.create_dataset('rlabels', dtype=int, shape=shape)
+    rpreds_dset = f.create_dataset('rpreds', dtype=int, shape=shape)
+
+
+    labels_dset[start:start+portion] = labels
+    preds_dset[start:start+portion] = preds
+    rlabels_dset[start:start+portion] = rlabels
+    rpreds_dset[start:start+portion] = rpreds
+
+    f.create_dataset('seed', data=seed)
+    dset = f.create_dataset('num_ranks', data=size)
+    dset.attrs['description'] = "This is the number of MPI ranks used"
+    f.create_dataset('cluster_sizes', data=cluster_sizes)
+    dset = f.create_dataset('umap_iters', data=args.umap_iters)
+    dset.attrs['description'] = "The number of UMAP iterations used for calculating the distance matrix"
+    dset = f.create_dataset('fraction', data=args.fraction)
+    dset.attrs['description'] = "the fraction to subsample at each iteration"
+
+    f.close()
+
+    if rank == 0:
+        logger.info('done')
