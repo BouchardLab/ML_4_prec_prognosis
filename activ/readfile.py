@@ -17,7 +17,7 @@ class TrackTBIFile(object):
     __pid = 'patient_ids'
 
     def __init__(self, filename, subgroup=None):
-        idx = filename.rfind('.h5')
+        idx = filename.rfind('.h5/')
         if idx > -1:
             idx += 3
             if subgroup is not None:
