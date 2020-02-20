@@ -110,8 +110,16 @@ if __name__ == '__main__':
     from ..utils import check_seed, int_list, get_logger
     from activ.clustering import compute_umap_distance
     from scipy.cluster.hierarchy import linkage, cut_tree
-    from sklearn.linear_model import LinearRegression
     import h5py
+    from sklearn.linear_model import LinearRegression, MultiTaskLassoCV, MultiTaskElasticNetCV
+    from sklearn.ensemble import RandomForestRegressor
+
+    REG_CHOICES = {
+        'rf': RandomForestRegressor(n_estimators=200),
+        'linear': LinearRegression(),
+        'lasso': MultiTaskLassoCV(),
+        'enet': MultiTaskElasticNetCV()
+    }
 
     desc = "simulate clusters using parameters calculated from original TBI data"
 
@@ -120,6 +128,8 @@ if __name__ == '__main__':
     parser.add_argument('outfile', type=str, help='the directory to save output to')
     parser.add_argument('-c', '--cluster_sizes', type=int_list, help='number of clusters', default=def_cluster_sizes)
     parser.add_argument('-s', '--seed', type=check_seed, help='random seed. default is based on clock', default='')
+    parser.add_argument('-r', '--regressor', choices=REG_CHOICES.keys(), default='linear',
+                        help='the type of regressor to use when transforming clusters')
 
     args = parser.parse_args()
 
@@ -140,9 +150,11 @@ if __name__ == '__main__':
 
     # compute linear relationship between biomarkers and outcomes
     logger.info('computing linear relationship and residuals')
-    lr = LinearRegression().fit(bm, oc)
+    regressor = REG_CHOICES[args.regressor]
+    logger.info('Regressing outcomes onto biomarkers with\n %s' % str(regressor))
+    regressor.fit(bm, oc)
     # compute residuals, we will use this to estimate an error distrubtion
-    res = oc - lr.predict(bm)
+    res = oc - regressor.predict(bm)
 
     def simdata(__labels):
         # compute multivariate Gaussian parameters from data
@@ -152,14 +164,15 @@ if __name__ == '__main__':
         # simulate data with these parameters
         X, labels = sim_clusters(mean, empcov, n_samples, random_state)
         # transform simulated data with computed linear relationship
-        Y = transform_multivariate_data(X, lr, res, random_state)
+        Y = transform_multivariate_data(X, regressor, res, random_state)
         return X, Y, labels
 
     try:
         f = h5py.File(args.outfile, 'w')
         f.attrs['seed'] = args.seed
-        f.create_dataset('beta', data=lr.coef_)
-        f.create_dataset('intercept', data=lr.intercept_)
+        if hasattr(regressor, 'coef_'):
+            f.create_dataset('beta', data=regressor.coef_)
+            f.create_dataset('intercept', data=regressor.intercept_)
 
         for i, n_clusters in enumerate(args.cluster_sizes):
             logger.info(f'simulating data for {n_clusters} clusters')
