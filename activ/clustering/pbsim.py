@@ -37,28 +37,22 @@ def sim_clusters(centers, covs, n_samples=100, random_state=None):
     return ret, labels
 
 
-def transform_multivariate_data(X, lm, res=None, random_state=None):
+def transform_multivariate_data(X, regressor, res=None, random_state=None):
     """
     Transform multivariate data according the fit of a linear model, and
     add error.
 
     Args:
-        X (array-like)                  : the data to transform
-        lm (sklearn linear model)       : a fitted linear model
-        res (array-like)                : residual error terms to compute an emperical
-                                          error distribution from. If None, use standard
-                                          normal error
-        random_state                    : the random state to use
+        X (array-like)                      : the data to transform
+        regressor (sklearn regressor)       : a fitted regressor
+        res (multivariate_normal_frozen)    : scipy frozen random variable to draw residuals from
+                                              If None, do not add residuals
+        random_state                        : the random state to use
     """
     random_state = check_random_state(random_state)
-    Y = X @ lm.coef_.T + lm.intercept_
-    if res is None:
-        res_means = np.zeros(Y.shape[1])
-        res_var = np.diag(np.ones(Y.shape[1]))
-    else:
-        res_means = np.mean(res, axis=0)
-        res_var = np.diag(np.var(res, axis=0))
-    Y += random_state.multivariate_normal(res_means, res_var, X.shape[0])
+    Y = regressor.predict(X)
+    if res is not None:
+        Y += res.rvs(Y.shape[0])
     return Y
 
 
@@ -118,7 +112,8 @@ if __name__ == '__main__':
         'rf': RandomForestRegressor(n_estimators=200),
         'linear': LinearRegression(),
         'lasso': MultiTaskLassoCV(),
-        'enet': MultiTaskElasticNetCV()
+        'enet': MultiTaskElasticNetCV(),
+        'random': None
     }
 
     desc = "simulate clusters using parameters calculated from original TBI data"
@@ -130,6 +125,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--seed', type=check_seed, help='random seed. default is based on clock', default='')
     parser.add_argument('-r', '--regressor', choices=REG_CHOICES.keys(), default='linear',
                         help='the type of regressor to use when transforming clusters')
+    parser.add_argument('--no_residuals', action='store_true', default='False', help='do not add error to response matrix')
 
     args = parser.parse_args()
 
@@ -138,9 +134,14 @@ if __name__ == '__main__':
 
     random_state = check_random_state(args.seed)
 
+
     dat = load_data()
     bm = dat.biomarkers
     oc = dat.outcomes
+
+    REG_CHOICES['random'] = LinearRegression()
+    REG_CHOICES['random'].coef_ = random_state.normal(size=(oc.shape[1], bm.shape[1]))
+    REG_CHOICES['random'].intercept_ = np.zeros(oc.shape[1])
 
     # cluster data
     logger.info('computing iterative UMAP distance matrix')
@@ -154,7 +155,11 @@ if __name__ == '__main__':
     logger.info('Regressing outcomes onto biomarkers with\n %s' % str(regressor))
     regressor.fit(bm, oc)
     # compute residuals, we will use this to estimate an error distrubtion
-    res = oc - regressor.predict(bm)
+    res = None
+    if not args.no_residuals:
+        res = oc - regressor.predict(bm)
+        res = sps.multivariate_normal(mean=np.mean(res, axis=0), cov=np.diag(np.var(res, axis=0)))
+
 
     def simdata(__labels):
         # compute multivariate Gaussian parameters from data
@@ -168,11 +173,13 @@ if __name__ == '__main__':
         return X, Y, labels
 
     try:
-        f = h5py.File(args.outfile, 'w')
+        f = h5py.File(args.outfile, 'a')
         f.attrs['seed'] = args.seed
         if hasattr(regressor, 'coef_'):
-            f.create_dataset('beta', data=regressor.coef_)
-            f.create_dataset('intercept', data=regressor.intercept_)
+            if 'beta' not in f:
+                f.create_dataset('beta', data=regressor.coef_)
+            if 'intercept' not in f:
+                f.create_dataset('intercept', data=regressor.intercept_)
 
         for i, n_clusters in enumerate(args.cluster_sizes):
             logger.info(f'simulating data for {n_clusters} clusters')
