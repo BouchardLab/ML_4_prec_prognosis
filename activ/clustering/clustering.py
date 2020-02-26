@@ -675,32 +675,6 @@ def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, met
     return score, norm_score, seed, all_embeddings, clusters
 
 
-def read_data(path):
-    f = _h5py.File(path, mode='r')
-    try:
-        labels = f['labels'][:]
-        preds = f['preds'][:]
-        rlabels = f['rlabels'][:]
-        rpreds = f['rpreds'][:]
-        cluster_sizes = f['cluster_sizes'][:]
-    finally:
-        f.close()
-
-    n_subsamples = labels.shape[0]
-    n_cluster_sizes = labels.shape[2]
-    accuracy = np.zeros((n_cluster_sizes, n_subsamples))
-    chance = np.zeros((n_cluster_sizes, n_subsamples))
-
-    for sample in range(n_subsamples):
-        for cl in range(n_cluster_sizes):
-            sl = np.s_[sample, :, cl]
-            accuracy[cl, sample] = accuracy_score(labels[sl], preds[sl])
-            chance[cl, sample] = accuracy_score(labels[sl], rpreds[sl])
-    foc = accuracy/chance
-
-    return cluster_sizes, foc, accuracy, chance
-
-
 def plot_line(x, med, lower=None, upper=None, ax=None, color='red', label=None, xlabel=None, ylabel=None, title=None):
     if ax is None:
         import matplotlib.pyplot as plt
