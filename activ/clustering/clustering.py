@@ -4,6 +4,7 @@ import numpy as _np
 import abc as _abc
 import scipy.spatial.distance as _spd
 import scipy.cluster.hierarchy as _sch
+import scipy.signal as signal
 import logging as _logging
 from time import time as _time
 
@@ -690,14 +691,53 @@ def plot_line(x, med, lower=None, upper=None, ax=None, color='red', label=None, 
     if ylabel is not None:
         ax.set_ylabel(ylabel)
 
+def get_avg(ar, i):
 
-def flatten(noc, foc, filter_inf=True):
-    x_train = np.repeat(noc, foc.shape[1])
-    y_train = np.ravel(foc)
+    p = float('nan')
+    for ii in reversed(range(i)):
+        if not np.isinf(ar[ii]):
+            p = ar[ii]
+            break
+    n = float('nan')
+    for ii in range(i+1, ar.shape[0]):
+        if not np.isinf(ar[ii]):
+            n = ar[ii]
+            break
+    ret = 0.0
+    if not np.isnan(p):
+        ret += p/2
+    if not np.isnan(n):
+        ret += n/2
+    if ret == 0.0:
+        raise ValueError('flanking values average to 0.0 -- '
+                         'this seems unlikely -- '
+                         'probably could not find finite values')
+    return ret
+
+
+def flatten(noc, foc, filter_inf=True, smooth=True):
     if filter_inf:
+        x_train = np.repeat(noc, foc.shape[1])
+        y_train = np.ravel(foc)
         good_pts = np.where(np.logical_not(np.isinf(y_train)))[0]
         x_train = x_train[good_pts]
         y_train = y_train[good_pts]
+    else:
+        w = 11
+        c = w // 2
+        kernel = signal.hann(w)
+        kernel /= kernel.sum()
+        noc = noc[:-c-1]
+        new_foc = foc[:-c-1]
+        for i in range(foc.shape[1]):
+            sub = foc[:, i]
+            inf_vals = np.where(np.isinf(sub))[0]
+            for j in inf_vals:
+                sub[j] = get_avg(sub, j)
+            if smooth:
+                new_foc[:, i] = np.convolve(foc[:, i], kernel)[c:-w]
+        x_train = np.repeat(noc, new_foc.shape[1])
+        y_train = np.ravel(new_foc)
     return x_train, y_train
 
 
@@ -803,22 +843,28 @@ def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.
 
     return min_noc
 
-def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, ttest_cutoff=True, ax=None, f_kwargs=None, a_kwargs=None, n_sigma=None, ci=0.95, use_median=False, spread_asm=False, spread_foc=True):
+def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, iqr=True,
+            ttest_cutoff=True, ax=None, f_kwargs=None, a_kwargs=None,
+            n_sigma=None, ci=0.95, use_median=False, spread_asm=False, spread_foc=True):
     # clean up and summarize data
-    noc_filt, foc_filt = filter_iqr(noc, foc)
-    fit_obs = noc_filt.shape[0]
+    if iqr:
+        noc_filt, foc_filt = filter_iqr(noc, foc)
+    else:
+        noc_filt, foc_filt = flatten(noc, foc, filter_inf=False, smooth=True)
 
     x_fit, y_fit = noc_filt, foc_filt
     lower, med, upper = None, None, None
     if fit_summary:
         _, lower, med, upper = summarize_flattened(noc_filt, foc_filt, iqr=False)
-        fit_obs = lower.shape[0]
         x_fit, y_fit = _, med
 
-    popt, pcov = spo.curve_fit(linefit_func, x_fit, y_fit, p0=np.array([-1, -1, 0]))
-
-    lim = popt[0]
-    lim_sd = np.sqrt(pcov[0,0])
+    try:
+        popt, pcov = spo.curve_fit(linefit_func, x_fit, y_fit, p0=np.array([-1, -1, 0]))
+        lim = popt[0]
+        lim_sd = np.sqrt(pcov[0,0])
+    except RuntimeError as e:
+        print(e)
+        return 0
 
     if n_sigma is None:
         n_sigma = np.abs(sps.norm.ppf((1-ci)/2))
