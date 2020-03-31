@@ -2,6 +2,7 @@ from sklearn.utils import check_random_state
 from sklearn.preprocessing import scale, normalize
 from sklearn.linear_model import Lasso
 from sklearn.base import BaseEstimator
+import numpy as np
 
 class ALSCCA(BaseEstimator):
     """
@@ -20,7 +21,7 @@ class ALSCCA(BaseEstimator):
         if X_lm is None:
             X_lm = Lasso(alpha=alpha, max_iter=2000)
         if Y_lm is None:
-            X_lm = Lasso(alpha=alpha, max_iter=2000)
+            Y_lm = Lasso(alpha=alpha, max_iter=2000)
 
         self.X_lm = X_lm
         self.Y_lm = Y_lm
