@@ -4,6 +4,7 @@ from sklearn.linear_model import Lasso
 from sklearn.base import BaseEstimator
 import numpy as np
 
+
 class ALSCCA(BaseEstimator):
     """
     Alternating Least Squares Canonical Correlation Analysis

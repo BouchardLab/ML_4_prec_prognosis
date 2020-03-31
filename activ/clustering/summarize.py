@@ -1,7 +1,7 @@
 import h5py
 import numpy as np
 from sklearn.metrics import accuracy_score
-
+import scipy.signal as signal
 
 def read_clustering_results(path):
     """
@@ -35,7 +35,7 @@ def read_clustering_results(path):
     return cluster_sizes, foc, accuracy, chance
 
 
-def flatten(noc, foc, filter_inf=True):
+def flatten(noc, foc, filter_inf=True, smooth=True):
     """
     Flatten fold-over-chance and number-of-clusters arrays into
     paired data points
@@ -47,12 +47,28 @@ def flatten(noc, foc, filter_inf=True):
     Returns:
         (noc_flattened, foc_flattened)
     """
-    x_train = np.repeat(noc, foc.shape[1])
-    y_train = np.ravel(foc)
     if filter_inf:
+        x_train = np.repeat(noc, foc.shape[1])
+        y_train = np.ravel(foc)
         good_pts = np.where(np.logical_not(np.isinf(y_train)))[0]
         x_train = x_train[good_pts]
         y_train = y_train[good_pts]
+    else:
+        w = 11
+        c = w // 2
+        kernel = signal.hann(w)
+        kernel /= kernel.sum()
+        noc = noc
+        new_foc = foc[:]
+        for i in range(foc.shape[1]):
+            sub = foc[:, i]
+            inf_vals = np.where(np.isinf(sub))[0]
+            for j in inf_vals:
+                sub[j] = get_avg(sub, j)
+            if smooth:
+                new_foc[:, i] = np.convolve(foc[:, i], kernel)[c:-c]
+        x_train = np.repeat(noc, new_foc.shape[1])
+        y_train = np.ravel(new_foc)
     return x_train, y_train
 
 
@@ -106,7 +122,7 @@ def summarize_flattened(x, y, iqr=False):
     return uniq, lower, med, upper
 
 
-def plot_line(x, med, lower=None, upper=None, color='red', label=None, xlabel=None, ylabel=None, title=None, ax=None, fontsize=None):
+def plot_line(x, med, lower=None, upper=None, color='red', label=None, xlabel=None, ylabel=None, title=None, ax=None, fontsize=None, marker='-o'):
     """
     Plot value as a function of number of clusters, including error bars
     """
@@ -116,7 +132,7 @@ def plot_line(x, med, lower=None, upper=None, color='red', label=None, xlabel=No
     yerr = None
     if lower is not None and upper is not None:
         yerr = [med - lower, upper - med]
-    ax.errorbar(x, med, yerr=yerr, color=color, fmt='-o', label=label)
+    ax.errorbar(x, med, yerr=yerr, color=color, fmt=marker, label=label)
     if title is not None:
         ax.set_title(title, fontsize=20)
     if xlabel is not None:
@@ -125,7 +141,7 @@ def plot_line(x, med, lower=None, upper=None, color='red', label=None, xlabel=No
         ax.set_ylabel(ylabel)
 
 
-def flatten_summarize(noc, measure, filter_inf=False, iqr=True):
+def flatten_summarize(noc, measure, filter_inf=True, smooth=True, iqr=True):
     """
     Flatten data and return summary metrics for plotting
     a measure as a function of number of clusters with error bars
@@ -133,7 +149,7 @@ def flatten_summarize(noc, measure, filter_inf=False, iqr=True):
     Returns:
         (x, lower_quartile, middle_quartile, upper_quartile)
     """
-    x_flat, y_flat = flatten(noc, measure, filter_inf=filter_inf)
+    x_flat, y_flat = flatten(noc, measure, filter_inf=filter_inf, smooth=True)
     return summarize_flattened(x_flat, y_flat, iqr=iqr)
 
 
