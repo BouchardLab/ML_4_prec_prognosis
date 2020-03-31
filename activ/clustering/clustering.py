@@ -715,68 +715,6 @@ def get_avg(ar, i):
     return ret
 
 
-def flatten(noc, foc, filter_inf=True, smooth=True):
-    if filter_inf:
-        x_train = np.repeat(noc, foc.shape[1])
-        y_train = np.ravel(foc)
-        good_pts = np.where(np.logical_not(np.isinf(y_train)))[0]
-        x_train = x_train[good_pts]
-        y_train = y_train[good_pts]
-    else:
-        w = 11
-        c = w // 2
-        kernel = signal.hann(w)
-        kernel /= kernel.sum()
-        noc = noc[:-c-1]
-        new_foc = foc[:-c-1]
-        for i in range(foc.shape[1]):
-            sub = foc[:, i]
-            inf_vals = np.where(np.isinf(sub))[0]
-            for j in inf_vals:
-                sub[j] = get_avg(sub, j)
-            if smooth:
-                new_foc[:, i] = np.convolve(foc[:, i], kernel)[c:-w]
-        x_train = np.repeat(noc, new_foc.shape[1])
-        y_train = np.ravel(new_foc)
-    return x_train, y_train
-
-
-def filter_iqr(noc, foc, s=1.5):
-    mask = np.zeros(foc.size, dtype=bool)
-    lower = np.zeros(noc.shape[0])
-    med = np.zeros(noc.shape[0])
-    upper = np.zeros(noc.shape[0])
-    step = foc.shape[1]
-    b = 0
-    for i, c in enumerate(noc):
-        lower[i], upper[i] = np.percentile(foc[i], [25, 75])
-        e = step*(i+1)
-        mask[b:e] = np.logical_and(foc[i] >= lower[i]*(1-s), foc[i] <= upper[i]*(1+s))
-        b = e
-    x_train, y_train = flatten(noc, foc, filter_inf=False)
-    x_train = x_train[mask]
-    y_train = y_train[mask]
-    return x_train, y_train
-
-
-def summarize_flattened(x, y, iqr=False):
-    uniq = np.unique(x)
-    lower = np.zeros(uniq.shape[0])
-    med = np.zeros(uniq.shape[0])
-    upper = np.zeros(uniq.shape[0])
-    q = 1.96
-    for i, c in enumerate(uniq):
-        idx = x == c
-        if iqr:
-            lower[i], med[i], upper[i] = np.percentile(y[idx], [25, 50, 75])
-        else:
-            med[i] = np.mean(y[idx])
-            sd = np.std(y[idx])
-            lower[i] = med[i] - sd
-            upper[i] = med[i] + sd
-    return uniq, lower, med, upper
-
-
 def linefit_func(x, a, b, c):
     return a + b * np.exp(c * x)
 

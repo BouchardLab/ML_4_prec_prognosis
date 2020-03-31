@@ -2,6 +2,8 @@ from sklearn.utils import check_random_state
 from sklearn.preprocessing import scale, normalize
 from sklearn.linear_model import Lasso
 from sklearn.base import BaseEstimator
+import numpy as np
+
 
 class ALSCCA(BaseEstimator):
     """
