@@ -32,23 +32,28 @@ def cdsolve(X, Y, init, reg, random_state, max_iter=1000, selection='cyclic'):
     ret = np.zeros((X.shape[1], Y.shape[1]), dtype=np.float64)
     X = np.asfortranarray(X)
     Y = np.asfortranarray(Y)
-    _, this_coef, this_dual_gap = \
-        enet_path(X, Y, coef_init=init, alphas=[reg],
-                  random_state=random_state, max_iter=max_iter,
-                  selection=selection,
-                  check_input=False, return_n_iters=False,
-                  l1_ratio=1.0, eps=None, n_alphas=None)
+    ##init =
+    #_, this_coef, this_dual_gap = \
+    #    enet_path(X, Y, coef_init=init, alphas=[reg],
+    #              random_state=random_state, max_iter=max_iter,
+    #              selection=selection,
+    #              check_input=False, return_n_iters=False,
+    #              l1_ratio=1.0, eps=None, n_alphas=None)
 
-    #for i in range(Y.shape[1]):
-    #    _, this_coef, this_dual_gap = \
-    #        enet_path(X, Y[:, i], coef_init=init[:, i], alphas=[reg],
-    #                  random_state=random_state, max_iter=max_iter,
-    #                  selection=selection, precompute=True,
-    #                  check_input=False, return_n_iters=False,
-    #                  l1_ratio=1.0, eps=None, n_alphas=None)
-    #    ret[:, i] = this_coef
+#    precompute = np.empty(shape=(X.shape[1], X.shape[1]), dtype=X.dtype, order='C')
+#    np.dot(X.T, X, out=precompute)
 
-def tals_cca(X, Y, k, T=100, random_state=None, rx=0.1, ry=0.1):
+    for i in range(Y.shape[1]):
+        _, this_coef, this_dual_gap = \
+            enet_path(X, Y[:, i], coef_init=init[:, i], alphas=[reg],
+                      random_state=random_state, max_iter=max_iter,
+                      selection=selection, precompute='auto',
+                      check_input=True, return_n_iters=False,
+                      l1_ratio=1.0, eps=None, n_alphas=None)
+        ret[:, i] = this_coef.squeeze()
+    return ret
+
+def tals_cca(X, Y, k, T=100, random_state=None, rx=0.01, ry=0.01):
     random_state = check_random_state(random_state)
     n = len(X)
     p = X.shape[1]
@@ -63,14 +68,16 @@ def tals_cca(X, Y, k, T=100, random_state=None, rx=0.1, ry=0.1):
     S_t = None
 
     for t in range(T):
-        H_init = H_t1.dot(LA.inv(inprod(H_t1.T, Cxx)).dot(inprod(H_t1.T, Cxy, S_t1.T)))
+        H_init = H_t1.dot(LA.pinv(inprod(H_t1.T, Cxx)).dot(inprod(H_t1.T, Cxy, S_t1.T)))
         # solve for H_t, initialized at H_init, use S_t1
         H_t = cdsolve(X, Y.dot(S_t1), H_init, rx/2, random_state)
         H_t = gs(H_t, Cxx)
-        S_init = S_t1.dot(LA.inv(inprod(S_t1.T, Cyy)).dot(inprod(S_t1.T, Cxy.T, H_t.T)))
+        S_init = S_t1.dot(LA.pinv(inprod(S_t1.T, Cyy)).dot(inprod(S_t1.T, Cxy.T, H_t.T)))
         # solve for S_t, initialized at S_init, use H_t
         S_t = cdsolve(Y, X.dot(H_t), S_init, ry/2, random_state)
         S_t = gs(S_t, Cyy)
+        H_t1 = H_t
+        S_t1 = S_t
 
     return H_t, S_t
 
