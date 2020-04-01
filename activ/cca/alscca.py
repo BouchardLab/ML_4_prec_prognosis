@@ -3,6 +3,76 @@ from sklearn.preprocessing import scale, normalize
 from sklearn.linear_model import Lasso
 from sklearn.base import BaseEstimator
 import numpy as np
+import numpy.linalg as LA
+from sklearn.linear_model import enet_path
+
+
+def inprod(u, M, v=None):
+    v = u if v is None else v
+    return u.dot(M.dot(v.T))
+
+
+def gs(A, M):
+    """
+    Gram-Schmidt with inner product for M
+    """
+    A = A.copy()
+    A[:, 0] = A[:, 0] / np.sqrt(inprod(A[:, 0], M))
+    for i in range(1, A.shape[1]):
+        Ai = A[:, i]
+        for j in range(0, i):
+            Aj = A[:, j]
+            t = inprod(Ai, M)
+            Ai = Ai - t * Aj
+        A[:, i] = Ai / np.sqrt(inprod(Ai, M))
+    return A
+
+
+def cdsolve(X, Y, init, reg, random_state, max_iter=1000, selection='cyclic'):
+    ret = np.zeros((X.shape[1], Y.shape[1]), dtype=np.float64)
+    X = np.asfortranarray(X)
+    Y = np.asfortranarray(Y)
+    _, this_coef, this_dual_gap = \
+        enet_path(X, Y, coef_init=init, alphas=[reg],
+                  random_state=random_state, max_iter=max_iter,
+                  selection=selection,
+                  check_input=False, return_n_iters=False,
+                  l1_ratio=1.0, eps=None, n_alphas=None)
+
+    #for i in range(Y.shape[1]):
+    #    _, this_coef, this_dual_gap = \
+    #        enet_path(X, Y[:, i], coef_init=init[:, i], alphas=[reg],
+    #                  random_state=random_state, max_iter=max_iter,
+    #                  selection=selection, precompute=True,
+    #                  check_input=False, return_n_iters=False,
+    #                  l1_ratio=1.0, eps=None, n_alphas=None)
+    #    ret[:, i] = this_coef
+
+def tals_cca(X, Y, k, T=100, random_state=None, rx=0.1, ry=0.1):
+    random_state = check_random_state(random_state)
+    n = len(X)
+    p = X.shape[1]
+    q = Y.shape[1]
+    Cxx = X.T.dot(X)/n + rx*np.identity(p)    # regularize for
+    Cyy = Y.T.dot(Y)/n + ry*np.identity(q)    # stability
+    Cxy = X.T.dot(Y)/n
+    H_t1 = gs(random_state.standard_normal((p, k)), Cxx)
+    S_t1 = gs(random_state.standard_normal((q, k)), Cyy)
+
+    H_t = None
+    S_t = None
+
+    for t in range(T):
+        H_init = H_t1.dot(LA.inv(inprod(H_t1.T, Cxx)).dot(inprod(H_t1.T, Cxy, S_t1.T)))
+        # solve for H_t, initialized at H_init, use S_t1
+        H_t = cdsolve(X, Y.dot(S_t1), H_init, rx/2, random_state)
+        H_t = gs(H_t, Cxx)
+        S_init = S_t1.dot(LA.inv(inprod(S_t1.T, Cyy)).dot(inprod(S_t1.T, Cxy.T, H_t.T)))
+        # solve for S_t, initialized at S_init, use H_t
+        S_t = cdsolve(Y, X.dot(H_t), S_init, ry/2, random_state)
+        S_t = gs(S_t, Cyy)
+
+    return H_t, S_t
 
 
 class ALSCCA(BaseEstimator):
