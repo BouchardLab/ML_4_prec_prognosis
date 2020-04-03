@@ -149,7 +149,7 @@ def flatten_summarize(noc, measure, filter_inf=True, smooth=True, iqr=True):
     Returns:
         (x, lower_quartile, middle_quartile, upper_quartile)
     """
-    x_flat, y_flat = flatten(noc, measure, filter_inf=filter_inf, smooth=True)
+    x_flat, y_flat = flatten(noc, measure, filter_inf=filter_inf, smooth=smooth)
     return summarize_flattened(x_flat, y_flat, iqr=iqr)
 
 
