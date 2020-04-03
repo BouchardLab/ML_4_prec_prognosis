@@ -41,7 +41,8 @@ def cdsolve(X, Y, init, reg, random_state, max_iter=1000, tol=0.1, selection='cy
         ret[:, i] = this_coef.squeeze()
     return ret
 
-def tals_cca(X, Y, k, T=1000, random_state=None, rx=0.001, ry=0.001):
+def tals_cca(X, Y, k, max_iters=1000, tol=0.0001, random_state=None, rx=0.001, ry=0.001,
+             return_cov=False):
     random_state = check_random_state(random_state)
     n = len(X)
     p = X.shape[1]
@@ -57,7 +58,8 @@ def tals_cca(X, Y, k, T=1000, random_state=None, rx=0.001, ry=0.001):
     H_t = None
     S_t = None
 
-    for t in range(T):
+    n_iters = 0
+    for t in range(max_iters):
         H_init = H_t1.dot(LA.pinv(inprod(H_t1.T, Cxx)).dot(inprod(H_t1.T, Cxy, S_t1.T)))
         # solve for H_t, initialized at H_init, use S_t1
         H_t = cdsolve(X, Y.dot(S_t1), H_init, rx/2, random_state)
@@ -66,11 +68,61 @@ def tals_cca(X, Y, k, T=1000, random_state=None, rx=0.001, ry=0.001):
         # solve for S_t, initialized at S_init, use H_t
         S_t = cdsolve(Y, X.dot(H_t), S_init, ry/2, random_state)
         S_t = gs(S_t, Cyy)
+        n_iters += 1
+        delta = LA.norm(H_t - H_t1) + LA.norm(S_t - S_t1)
+        if delta < tol:
+            break
         H_t1 = H_t
         S_t1 = S_t
 
-    return H_t, S_t
+    ret = [H_t, S_t, n_iters]
+    if return_cov:
+        ret.append(Cxx)
+        ret.append(Cyy)
+        ret.append(Cxy)
+    return tuple(ret)
 
+
+
+class TALSCCA(BaseEstimator):
+    """
+    Alternating Least Squares Canonical Correlation Analysis
+    """
+
+    def __init__(self, random_state=None,
+                 n_components=1, max_iters=100, alpha_x=0.001,
+                 alpha_y=0.001):
+        """
+        Args:
+            X_lm:                     Linear model for regressing X onto Y
+            Y_lm:                     Linear model for regressing Y onto X
+            max_iter:                 max_iter for default Lasso object
+            alpha:                    alpha for default Lasso object
+        """
+
+        self.random_state = check_random_state(random_state)
+        self.n_components = n_components
+        self.max_iters = max_iters
+        self.alpha_x = alpha_x
+        self.alpha_y = alpha_y
+
+    def fit(self, X, Y):
+        ret = tals_cca(X, Y, self.n_components, max_iters=self.max_iters,
+                       rx=self.alpha_x, ry=self.alpha_y, return_cov=True)
+        H, S, self.n_iters_ = ret[0], ret[1], ret[2]
+        self.X_components_, self.Y_components_ = H.T, S.T
+        self.X_cov_ = ret[3]
+        self.Y_cov_ = ret[4]
+        self.XY_cov_ = ret[5]
+        return self
+
+    def transform(self, X, Y):
+        if getattr(self, 'X_components_', None) is None:
+            raise ValueError("TALSCCA is not fit")
+        return X.dot(self.X_components_.T), Y.dot(self.Y_components_.T)
+
+    def fit_transform(self, X, Y):
+        return self.fit(X,Y).transform(X,Y)
 
 class ALSCCA(BaseEstimator):
     """
@@ -109,14 +161,16 @@ class ALSCCA(BaseEstimator):
         theta_d = np.zeros(n_iters)
 
         for i in range(n_iters):
-            beta_new = self.X_lm.fit(X, Y@theta).coef_.T
             theta_new = self.Y_lm.fit(Y, X@beta).coef_.T
+            beta_new = self.X_lm.fit(X, Y@theta).coef_.T
             beta_d[i] = np.linalg.norm(beta_new - beta)
             theta_d[i] = np.linalg.norm(theta_new - theta)
             beta = beta_new
             theta = theta_new
         self.beta = beta
         self.theta = theta
+        self.beta_d = beta_d
+        self.theta_d = theta_d
         return self
 
     def transform(self, X, Y):
