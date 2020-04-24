@@ -25,9 +25,9 @@ This package contains a subpackage for visualizing NMF result, `activ.nmf.viz`. 
 
 ## CCA - Canonical correlation analysis
 
-Within this package, there are a few different implementations of sparse canonical correlation analysis. The most fleshed out
-is  _truly-alternating least squares CCA_ [1]. In [1] least squares steps are regularized using an $\el2$-norm.
-The implementation here regularizes using an $\el1$-norm to identify sparse weights. This is implemented in the subpackage
+Within this package, there are a few different implementations of sparse canonical correlation analysis. The most mature
+is  _truly-alternating least squares CCA_ [1]. In [1] least squares steps are regularized using an _L2_-norm.
+The implementation here regularizes using an _L1_-norm to identify sparse weights. This is implemented in the subpackage
 `activ.cca.alscca` in the class `TALSCCA`. Example use can be found in `notebooks/TALS_CCA_CV.ipynb`
 
 ## CT Measures
