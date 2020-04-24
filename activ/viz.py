@@ -12,19 +12,21 @@ from sklearn.linear_model import LinearRegression
 from .analytics import cv_r2_score, linefit, _check_X_y
 
 
-def get_labels(column, palette='hls', marker=None, solid_points=False):
+def get_labels(column, palette='hls', marker=None, solid_points=False,
+               marker_kwargs=dict()):
     uniq = np.unique(column)
     colors = sns.color_palette(palette, len(uniq)).as_hex()[::-1]
     lut = dict(zip(uniq, colors))
     labels = pd.Series([lut[v] for v in column])
     patches = [mpatches.Patch(color=c, label=l) for l, c in lut.items()]
-    kwargs = dict(marker='o', color='none', markeredgewidth=6,
-                          markerfacecolor='none', markersize=15)
-    if solid_points:
-        kwargs['markerfacecolor'] = None
+    _kwargs = dict()
+    _kwargs.update(marker_kwargs)
     if marker is not None:
-        kwargs['marker'] = marker
-    patches = [mlines.Line2D([0], [0], label=l, markeredgecolor=c, **kwargs) for l,c in lut.items()]
+        _kwargs['marker'] = marker
+    if solid_points:
+        patches = [mlines.Line2D([0], [0], label=l, mec=c, mfc=c, **_kwargs) for l,c in lut.items()]
+    else:
+        patches = [mlines.Line2D([0], [0], label=l, mec=c, **_kwargs) for l,c in lut.items()]
     return labels, patches
 
 

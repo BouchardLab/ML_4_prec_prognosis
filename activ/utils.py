@@ -3,7 +3,7 @@ import logging
 import math
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
-from sklearn.utils import check_random_state
+import time
 
 def get_logger(path=None, name=None, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s'):
     formatter = logging.Formatter(fmt)
@@ -18,10 +18,12 @@ def get_logger(path=None, name=None, fmt='%(asctime)s - %(name)s - %(levelname)s
     logger.setLevel(logging.INFO)
     return logger
 
+
 def read_labels(dset):
     classes = dset.attrs['classes'].astype('U')
     enc = LabelEncoder().fit(classes)
     return enc.inverse_transform(dset[:]), classes
+
 
 def get_start_portion(rank, size, n):
     portion = math.ceil((n - rank) / size)
@@ -29,3 +31,20 @@ def get_start_portion(rank, size, n):
     fmr = size - fbsize*size + n
     start = fbsize*fmr + portion * (rank - fmr)
     return start, portion
+
+
+def check_seed(x):
+    if len(x) == 0:
+        return int(round(time.time() * 1000)) % (2**32 - 1)
+    try:
+        return int(x)
+    except Exception as e:
+        raise argparse.ArgumentTypeError(e.args[0])
+
+
+def int_list(string):
+    if ':' in string:
+        ar = [int(a) for a in string.split(":")]
+        return list(range(ar[0], ar[1]+1))
+    else:
+        return list(map(int, string.split(",")))

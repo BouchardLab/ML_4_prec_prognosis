@@ -192,7 +192,16 @@ def plot_measure_leverage(measures, X=None, pca=None, palette='Set3', path=None,
     return pca
 
 
-def plot_umap(emb, age, sex, path=None, **sf_kwargs):
+def plot_umap(emb, age, sex, path=None, sf_kwargs=dict(), sp_kwargs=dict()):
+    """
+    Args:
+        emb:            UMAP embedding
+        age:            age category of each patient
+        sex:            sex of each patient
+        path:           the path to save the plot to
+        sf_kwargs:      keyword arguments for plt.savefig
+        sp_kwargs:      keyword arguments for sns.scatterplot
+    """
     sex_cat = np.sort(np.unique(sex))
     age_cat = np.sort(np.unique(age))
 
@@ -218,11 +227,13 @@ def plot_umap(emb, age, sex, path=None, **sf_kwargs):
 
     ax_scatter.set_xlabel('1st UMAP dimension', fontsize=20)
     ax_scatter.set_ylabel('2nd UMAP dimension', fontsize=20)
-    sns.scatterplot(emb[:,0], emb[:,1], hue=sex,
-                    palette=sns.color_palette(sex_color),
-                    size=age, size_order=age_cat[::-1],
-                    hue_order=sex_cat,
-                    ax=ax_scatter)
+    _sp_kwargs = dict(hue=sex,
+                      palette=sns.color_palette(sex_color),
+                      size=age, size_order=age_cat[::-1],
+                      hue_order=sex_cat,
+                      ax=ax_scatter)
+    _sp_kwargs.update(sp_kwargs)
+    sns.scatterplot(emb[:,0], emb[:,1], **_sp_kwargs)
 
     ax_histx = plt.axes(rect_histx)
     ax_histx.tick_params(direction='in', labelbottom=False)

@@ -4,6 +4,7 @@ import numpy as _np
 import abc as _abc
 import scipy.spatial.distance as _spd
 import scipy.cluster.hierarchy as _sch
+import scipy.signal as signal
 import logging as _logging
 from time import time as _time
 
@@ -20,8 +21,8 @@ from sklearn.ensemble import RandomForestClassifier as RFC
 from sklearn.model_selection import cross_val_score, cross_val_predict
 
 from umap import UMAP
-from .data_normalization import data_normalization
-from .sampler import JackknifeSampler, BootstrapSampler, SubSampler
+from ..data_normalization import data_normalization
+from ..sampler import JackknifeSampler, BootstrapSampler, SubSampler
 
 def path_tuple(type_name, **kwargs):
     from collections import namedtuple
@@ -205,8 +206,15 @@ def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_size
         chances - shape (n_samples, n_cluster_sizes)
             predictions of randomized labels for each sample of each boostrap replicate
     """
+    log(logger, 'computing UMAP distance matrix')
     dist = compute_umap_distance(y, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs, n_iters=n_umap_iters, agg=agg)
-    return _cluster_and_predict(X, dist, rand)
+    kwargs = dict(
+        random_state=rand,
+        logger=logger,
+        classifier=classifier,
+        cv=cv,
+    )
+    return _cluster_and_predict(X, dist, cluster_sizes, **kwargs)
 
 def _run_umap_clustering(X, y, cluster_sizes, sampler, agg='median', metric='euclidean',
                         classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
@@ -285,7 +293,6 @@ def _run_umap_clustering(X, y, cluster_sizes, sampler, agg='median', metric='euc
     for i, (X_p, y_p) in enumerate(sampler.sample(X, y)):
         uckwargs['y'] = y_p
         uckwargs['X'] = X_p
-        log(logger, 'computing UMAP distance matrix')
         true_labels[i], rand_labels[i], preds[i], chances[i] = _umap_cluster(**uckwargs)
     return true_labels, preds, rand_labels, chances
 
@@ -352,7 +359,7 @@ def jackknifed_umap_clustering(X, y, cluster_sizes, indices=None, agg='median', 
     return _run_umap_clustering(**kwargs)
 
 
-def bootstrapped_umap_clustering(X, y, cluster_sizes, n_iters, agg='median', metric='euclidean',
+def bootstrapped_umap_clustering(X, y, cluster_sizes, n_iters=None, agg='median', metric='euclidean',
                               classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
                               random_state=None, umap_kwargs=dict(), logger=None):
 
@@ -414,7 +421,7 @@ def bootstrapped_umap_clustering(X, y, cluster_sizes, n_iters, agg='median', met
     return _run_umap_clustering(**kwargs)
 
 
-def subsample_umap_clustering(X, y, cluster_sizes, n_iters, subsample_size, agg='median', metric='euclidean',
+def subsample_umap_clustering(X, y, cluster_sizes, n_iters=None, subsample_size=None, agg='median', metric='euclidean',
                              classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
                              random_state=None, umap_kwargs=dict(), logger=None):
     """
@@ -669,32 +676,6 @@ def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, met
     return score, norm_score, seed, all_embeddings, clusters
 
 
-def read_data(path):
-    f = _h5py.File(path, mode='r')
-    try:
-        labels = f['labels'][:]
-        preds = f['preds'][:]
-        rlabels = f['rlabels'][:]
-        rpreds = f['rpreds'][:]
-        cluster_sizes = f['cluster_sizes'][:]
-    finally:
-        f.close()
-
-    n_subsamples = labels.shape[0]
-    n_cluster_sizes = labels.shape[2]
-    accuracy = np.zeros((n_cluster_sizes, n_subsamples))
-    chance = np.zeros((n_cluster_sizes, n_subsamples))
-
-    for sample in range(n_subsamples):
-        for cl in range(n_cluster_sizes):
-            sl = np.s_[sample, :, cl]
-            accuracy[cl, sample] = accuracy_score(labels[sl], preds[sl])
-            chance[cl, sample] = accuracy_score(labels[sl], rpreds[sl])
-    foc = accuracy/chance
-
-    return cluster_sizes, foc, accuracy, chance
-
-
 def plot_line(x, med, lower=None, upper=None, ax=None, color='red', label=None, xlabel=None, ylabel=None, title=None):
     if ax is None:
         import matplotlib.pyplot as plt
@@ -710,51 +691,28 @@ def plot_line(x, med, lower=None, upper=None, ax=None, color='red', label=None, 
     if ylabel is not None:
         ax.set_ylabel(ylabel)
 
+def get_avg(ar, i):
 
-def flatten(noc, foc, filter_inf=True):
-    x_train = np.repeat(noc, foc.shape[1])
-    y_train = np.ravel(foc)
-    if filter_inf:
-        good_pts = np.where(np.logical_not(np.isinf(y_train)))[0]
-        x_train = x_train[good_pts]
-        y_train = y_train[good_pts]
-    return x_train, y_train
-
-
-def filter_iqr(noc, foc, s=1.5):
-    mask = np.zeros(foc.size, dtype=bool)
-    lower = np.zeros(noc.shape[0])
-    med = np.zeros(noc.shape[0])
-    upper = np.zeros(noc.shape[0])
-    step = foc.shape[1]
-    b = 0
-    for i, c in enumerate(noc):
-        lower[i], upper[i] = np.percentile(foc[i], [25, 75])
-        e = step*(i+1)
-        mask[b:e] = np.logical_and(foc[i] >= lower[i]*(1-s), foc[i] <= upper[i]*(1+s))
-        b = e
-    x_train, y_train = flatten(noc, foc, filter_inf=False)
-    x_train = x_train[mask]
-    y_train = y_train[mask]
-    return x_train, y_train
-
-
-def summarize_flattened(x, y, iqr=False):
-    uniq = np.unique(x)
-    lower = np.zeros(uniq.shape[0])
-    med = np.zeros(uniq.shape[0])
-    upper = np.zeros(uniq.shape[0])
-    q = 1.96
-    for i, c in enumerate(uniq):
-        idx = x == c
-        if iqr:
-            lower[i], med[i], upper[i] = np.percentile(y[idx], [25, 50, 75])
-        else:
-            med[i] = np.mean(y[idx])
-            sd = np.std(y[idx])
-            lower[i] = med[i] - sd
-            upper[i] = med[i] + sd
-    return uniq, lower, med, upper
+    p = float('nan')
+    for ii in reversed(range(i)):
+        if not np.isinf(ar[ii]):
+            p = ar[ii]
+            break
+    n = float('nan')
+    for ii in range(i+1, ar.shape[0]):
+        if not np.isinf(ar[ii]):
+            n = ar[ii]
+            break
+    ret = 0.0
+    if not np.isnan(p):
+        ret += p/2
+    if not np.isnan(n):
+        ret += n/2
+    if ret == 0.0:
+        raise ValueError('flanking values average to 0.0 -- '
+                         'this seems unlikely -- '
+                         'probably could not find finite values')
+    return ret
 
 
 def linefit_func(x, a, b, c):
@@ -823,22 +781,28 @@ def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.
 
     return min_noc
 
-def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, ttest_cutoff=True, ax=None, f_kwargs=None, a_kwargs=None, n_sigma=None, ci=0.95, use_median=False, spread_asm=False, spread_foc=True):
+def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, iqr=True,
+            ttest_cutoff=True, ax=None, f_kwargs=None, a_kwargs=None,
+            n_sigma=None, ci=0.95, use_median=False, spread_asm=False, spread_foc=True):
     # clean up and summarize data
-    noc_filt, foc_filt = filter_iqr(noc, foc)
-    fit_obs = noc_filt.shape[0]
+    if iqr:
+        noc_filt, foc_filt = filter_iqr(noc, foc)
+    else:
+        noc_filt, foc_filt = flatten(noc, foc, filter_inf=False, smooth=True)
 
     x_fit, y_fit = noc_filt, foc_filt
     lower, med, upper = None, None, None
     if fit_summary:
         _, lower, med, upper = summarize_flattened(noc_filt, foc_filt, iqr=False)
-        fit_obs = lower.shape[0]
         x_fit, y_fit = _, med
 
-    popt, pcov = spo.curve_fit(linefit_func, x_fit, y_fit, p0=np.array([-1, -1, 0]))
-
-    lim = popt[0]
-    lim_sd = np.sqrt(pcov[0,0])
+    try:
+        popt, pcov = spo.curve_fit(linefit_func, x_fit, y_fit, p0=np.array([-1, -1, 0]))
+        lim = popt[0]
+        lim_sd = np.sqrt(pcov[0,0])
+    except RuntimeError as e:
+        print(e)
+        return 0
 
     if n_sigma is None:
         n_sigma = np.abs(sps.norm.ppf((1-ci)/2))
@@ -874,3 +838,138 @@ def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, ttest_cu
                         color='lightgray', label="limit 95%% CI: %.3f" % lim_sd)
 
     return min_noc
+
+if __name__ == '__main__':
+
+    from activ import load_data
+    import time
+    import math
+    from mpi4py import MPI
+    import h5py
+
+    from ..readfile import TrackTBIFile
+    from ..utils import get_logger, get_start_portion, int_list, check_seed
+
+    from argparse import ArgumentParser
+
+    samplers = {
+        'subsample': subsample_umap_clustering,
+        'bootstrap': bootstrapped_umap_clustering,
+        'jackknife': jackknifed_umap_clustering
+    }
+
+    parser = ArgumentParser(usage="%(prog)s [options] output_h5")
+
+
+    parser.add_argument('output', type=str, help='the output HDF5 file')
+
+    parser.add_argument('-s', '--seed', type=check_seed, help='the seed to use for running the pipeline', default=None)
+
+    parser.add_argument("-d", "--data", type=str, help="the Track TBI dataset file. use activ.load_data() by default", default=None)
+    parser.add_argument("-p", "--pdata", type=str, help="the Track TBI dataset file to use for predictions. use activ.load_data() by default", default=None)
+    parser.add_argument("-i", "--iterations", type=int, help="the number of subsampling iterations to run", default=50)
+    parser.add_argument("-f", "--fraction", type=float, help="the fraction of the original dataset to use with sampler=subsample", default=0.9)
+    parser.add_argument("-c", "--cluster_sizes", type=int_list, help="a comma-separated list of the cluster sizes",
+                        default=list(range(2, 15)))
+    parser.add_argument("-u", "--umap_iters", type=int, help="the number of iterations to do with UMAP", default=30)
+    parser.add_argument("-a", "--aggregate", type=str, help="type of aggregating", default='median')
+    parser.add_argument("-D", "--dead", action='store_true', help="use dead data", default=False)
+    parser.add_argument('-S', '--sampler', type=str, choices=list(samplers.keys()), help='the sampler to use', default='subsample')
+
+    args = parser.parse_args()
+
+
+    data = None         # source of data for building clusters
+    pdata = None        # source of data for predicting cluster labels
+    if args.data is None:
+        if args.dead is True:
+            data = load_data(dead=True)
+        else:
+            data = load_data()
+    else:
+        data = TrackTBIFile(args.data)
+
+    if args.pdata is None:
+        if args.dead is True:
+            pdata = load_data(dead=True)
+        else:
+            pdata = load_data()
+    else:
+        pdata = TrackTBIFile(args.pdata)
+
+
+    fkwargs = dict()
+
+    cluster_sizes = args.cluster_sizes
+    n_iters = args.iterations
+
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+
+    seed = args.seed
+    if seed == None:
+        seed = int(time.time())
+
+    if size > 1:
+        seed = comm.bcast(seed, root=0)
+        seed += rank
+        fkwargs['driver'] = 'mpio'
+        fkwargs['comm'] = comm
+
+    start, portion = get_start_portion(rank, size, args.iterations)
+
+    fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    if size > 1:
+        rank_str = "%02d" % rank
+        fmt = '%(asctime)s - %(name)s ' + rank_str + ' - %(levelname)s - %(message)s'
+    logger = get_logger(name="umap_clustering", fmt=fmt)
+
+    kwargs = dict(agg=args.aggregate, n_umap_iters=args.umap_iters, logger=logger)
+    shape=None
+    if args.sampler == 'jackknife':
+        kwargs['indices'] =list(range(start, start+portion))
+        shape = (n, n-1, len(cluster_sizes))
+    else:
+        kwargs['n_iters'] = portion
+        shape = (args.iterations, args.iterations, len(cluster_sizes))
+        if args.sampler == 'subsample':
+            kwargs['subsample_size'] = args.fraction
+
+    labels, preds, rlabels, rpreds = samplers[args.sampler](pdata.biomarkers, data.outcomes, cluster_sizes, **kwargs)
+
+    shape = (args.iterations, labels.shape[1], len(cluster_sizes))
+
+    if size > 1:
+        comm.barrier()
+
+    if rank == 0:
+        logger.info('writting results')
+
+    fkwargs['mode'] = 'w'
+    f = h5py.File(args.output, **fkwargs)
+
+    labels_dset = f.create_dataset('labels', dtype=int, shape=shape)
+    preds_dset = f.create_dataset('preds', dtype=int, shape=shape)
+    rlabels_dset = f.create_dataset('rlabels', dtype=int, shape=shape)
+    rpreds_dset = f.create_dataset('rpreds', dtype=int, shape=shape)
+
+
+    labels_dset[start:start+portion] = labels
+    preds_dset[start:start+portion] = preds
+    rlabels_dset[start:start+portion] = rlabels
+    rpreds_dset[start:start+portion] = rpreds
+
+    f.create_dataset('seed', data=seed)
+    dset = f.create_dataset('num_ranks', data=size)
+    dset.attrs['description'] = "This is the number of MPI ranks used"
+    f.create_dataset('cluster_sizes', data=cluster_sizes)
+    dset = f.create_dataset('umap_iters', data=args.umap_iters)
+    dset.attrs['description'] = "The number of UMAP iterations used for calculating the distance matrix"
+    dset = f.create_dataset('fraction', data=args.fraction)
+    dset.attrs['description'] = "the fraction to subsample at each iteration"
+
+    f.close()
+
+    if rank == 0:
+        logger.info('done')

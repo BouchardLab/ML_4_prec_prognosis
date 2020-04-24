@@ -3,7 +3,8 @@ import os
 import numpy as np
 import h5py
 
-from activ.clustering import read_data, get_noc
+from activ.clustering.clustering import get_noc
+from activ.clustering.summarize import read_clustering_results
 
 import argparse
 
@@ -13,6 +14,7 @@ parser.add_argument('-o', '--output', type=str, default='simdata_sweep_results.h
 parser.add_argument('--spread_asm', action='store_true', default=False, help='incorporate asymptote uncertainty when estimating noc')
 parser.add_argument('--spread_foc', action='store_true', default=False, help='incorporate FOC uncertainty when estimating noc')
 parser.add_argument('--use_median', action='store_true', default=False, help='use median when calculating FOC central tendancy')
+parser.add_argument('--smooth', action='store_true', default=False, help='smooth data before fitting curve')
 
 args = parser.parse_args()
 
@@ -30,12 +32,13 @@ for i, path in enumerate(args.files):
 
     true_noc.append(noc)
     iters.append(iter)
-    _noc, _foc, _accuracy, _chance = read_data(path)
+    _noc, _foc, _accuracy, _chance = read_clustering_results(path)
     kwargs= dict(noc=_noc,
                  foc=_foc,
                  plot=False,
                  fit_summary=True,
                  ttest_cutoff=False,
+                 iqr=not args.smooth,
                  use_median=args.use_median,
                  spread_asm=args.spread_asm,
                  spread_foc=args.spread_foc)

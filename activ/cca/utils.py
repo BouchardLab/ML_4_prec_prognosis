@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 from sklearn.model_selection import cross_val_predict
 from sklearn.metrics import r2_score
@@ -7,42 +8,84 @@ from sklearn.linear_model import LinearRegression
 from ..viz import get_labels
 
 
+def _check_array(v):
+    if isinstance(v, pd.Series):
+        v = v.values
+    if len(v.shape) == 1:
+        v = v.reshape(v.shape[0], 1)
+    elif len(v.shape) == 2:
+        if v.shape[1] != 1:
+            raise ValueError('v must be 1D: shape = %s' % str(v.shape))
+        v = v.reshape(v.shape[0])
+    return v
+
+
 def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitline=True,
-                         solid_points=False,
+                         solid_points=False, markeredgewidth=1, markersize=None,
+                         fontsize=16,
                          title=None, xlabel=None, ylabel=None, legend_title=None, ax=None):
+    """
+    Args:
+        x:                  the independent variable to plot
+        y:                  the dependent variable to plot
+        regressor:          the scikit-learn regressor object to use draw a line-fit
+        labels:             category labels to apply
+        solid_points:       plot solid points instead of circles
+        markeredgewidth:    the edge widgth of markers
+        markeredgesize:     the size of markers
+        title:              the title to add to the plot
+        xlabel:             the label to add to the X-axis
+        ylabel:             the label to add to the Y-axis
+        legend_title:       the title to give to the legend
+        ax:                 the matplotlib Axes object draw the plot on
+    """
     if ax is None:
         import matplotlib.pyplot as plt
         ax = plt.gca()
 
-    _x = x
-    _y = y
-    if len(x.shape) == 1:
-        _x = x.reshape(x.shape[0], 1)
-    if len(y.shape) == 2:
-        if y.shape[1] != 1:
-            raise ValueError('y must be 1D: shape = %s' % str(y.shape))
-        _y = y.reshape(y.shape[0])
+    _x = _check_array(x)
+    _y = _check_array(y)
 
     colors, patches = None, None
+    mk_kwargs = dict(marker='o', color='none')
+    scatter_kwargs = dict()
+    colors_key = None
+    if solid_points:
+        markersize = markersize or 5
+        scatter_kwargs['c'] = colors
+        colors_key = 'c'
+        #ax.scatter(_x, _y, c=colors, s=marker_size)
+    else:
+        markersize = markersize or 9
+        mk_kwargs['markerfacecolor'] = 'none'
+        mk_kwargs['markeredgewidth'] = markeredgewidth or 1
+        colors_key = 'edgecolors'
+        scatter_kwargs['facecolors'] = 'none'
+        scatter_kwargs['linewidths'] = mk_kwargs['markeredgewidth']
+        #ax.scatter(_x, _y, edgecolors=colors, facecolors='none', s=markersize)
+
+    mk_kwargs['markersize'] = markersize
+    scatter_kwargs['s'] = markersize**2
+
+
     if labels is not None:
-        colors, patches = get_labels(labels)
+        colors, patches = get_labels(labels, solid_points=solid_points, marker_kwargs=mk_kwargs)
     else:
         colors = ['black'] * _x.shape[0]
 
-    if solid_points:
-        ax.scatter(_x, _y, c=colors, s=5)
-    else:
-        ax.scatter(_x, _y, edgecolors=colors, facecolors='none', s=80)
+    scatter_kwargs[colors_key] = colors
+
+    ax.scatter(_x, _y, **scatter_kwargs)
 
     if patches is not None:
         ax.legend(handles=patches, title=legend_title, loc=2)
 
     if title is not None:
-        ax.set_title(title)
+        ax.set_title(title, fontsize=fontsize)
     if xlabel is not None:
-        ax.set_xlabel(xlabel)
+        ax.set_xlabel(xlabel, fontsize=fontsize)
     if ylabel is not None:
-        ax.set_ylabel(ylabel)
+        ax.set_ylabel(ylabel, fontsize=fontsize)
 
     if fitline:
         y_pred = cross_val_predict(regressor, _x, _y, cv=5)
@@ -55,5 +98,8 @@ def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitlin
         yfit = regressor.predict(xfit)
 
         ax.plot(xfit, yfit, color='black')
-        ax.text(0.7, 0.1, "$R^2$ (fit) = %0.4f\n$R^2$ (cv) = %0.4f" % (raw_r2, cv_r2), size=16, transform=ax.transAxes)
+        xpos = np.mean([np.max(x), np.min(x)])
+        ypos = np.min(y) + 0.2* (np.max(y) - np.min(y))
+        ax.text(0.7, 0.1, "$R^2$ (fit) = %0.4f\n$R^2$ (cv) = %0.4f" % (raw_r2, cv_r2), size=fontsize, transform=ax.transAxes)
+        #ax.text(xpos, ypos, "$R^2$ (fit) = %0.4f\n$R^2$ (cv) = %0.4f" % (raw_r2, cv_r2), size=16)
     return ax
