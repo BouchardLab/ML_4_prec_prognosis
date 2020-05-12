@@ -244,25 +244,31 @@ def get_parser(usage="%(prog)s [options] filepath",
     return parser
 
 
-def load_data(uoinmf=False, dead=False):
+def load_data(uoinmf=False, dead=False, path=None):
     """
     Load a TRACK-TBI dataset.
 
-    Use load_data('uoinmf') to laod UoI-NMF dataset
+    Use load_data(uoinmf=True) to load UoI-NMF dataset
 
     Args:
         uoinmf  : True to load the UoINMF decomposed data
         dead    : True to load dead patients imputed data
+        path    : The path to the data to load. If None,
+                  search packagae data
     """
+    if path is None:
+        if uoinmf:
+            path = resource_filename(__name__, 'data_uoinmf.h5')
+        elif dead:
+            path = resource_filename(__name__, 'data_dead.h5')
+            return TrackTBIFile(path)
+        else:
+            path = resource_filename(__name__, 'data.h5')
+            return TrackTBIFile(path)
+    cls = TrackTBIFile
     if uoinmf:
-        path = resource_filename(__name__, 'data_uoinmf.h5')
-        return UoINMFTrackTBIFile(path)
-    elif dead:
-        path = resource_filename(__name__, 'data_dead.h5')
-        return TrackTBIFile(path)
-    else:
-        path = resource_filename(__name__, 'data.h5')
-        return TrackTBIFile(path)
+        cls = UoINMFTrackTBIFile
+    return cls(path)
 
 
 # 586 samples with 474 features (258 biomarkers and 216 outcomes)
