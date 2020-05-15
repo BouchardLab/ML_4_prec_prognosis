@@ -69,22 +69,39 @@ def load_data(tbi_measures_path, orig_tbi_data_path, filter_suffixes=('Sum', 'Mi
 
 def get_age_sex(ptype):
     categories = np.unique(ptype)
-
+    print(categories)
     # extract sex data
     sex = np.chararray(ptype.shape[0])
     sex[:] = 'M'
-    for v in categories[:3]:
+    for v in categories[:8]:
         sex[ptype==v] = 'F'
     sex = sex.astype('U')
 
     # extract age data
     age = np.zeros(ptype.shape[0], dtype='<U10')
-    age_cat = ['16-30', '31-50', '51-100']
-    age[:] = age_cat[0]
-    for v in categories[1::3]:
+#    age_cat = ['16-30', '31-50', '51-100']
+#    age[:] = age_cat[0]
+#    for v in categories[1::3]:
+#        age[ptype==v] = age_cat[1]
+#    for v in categories[2::3]:
+#        age[ptype==v] = age_cat[2]
+    age_cat = ['16-30', '31-40', '41-50' , '51-60', '61-70', '71-80', '81-90', '91-100']
+    age[:] = age_cat[-1]
+    for v in categories[range(14)[0::7]]:
+        age[ptype==v] = age_cat[0]
+    for v in categories[1::7]:
         age[ptype==v] = age_cat[1]
-    for v in categories[2::3]:
+    for v in categories[2::7]:
         age[ptype==v] = age_cat[2]
+    for v in categories[3::7]:
+        age[ptype==v] = age_cat[3]
+    for v in categories[4::7]:
+        age[ptype==v] = age_cat[4]
+    for v in categories[5::7]:
+        age[ptype==v] = age_cat[5]
+    for v in categories[6::7]:
+        age[ptype==v] = age_cat[6]
+
     age = age.astype('U')
 
     return age, sex
@@ -206,8 +223,8 @@ def plot_umap(emb, age, sex, path=None, sf_kwargs=dict(), sp_kwargs=dict()):
     age_cat = np.sort(np.unique(age))
 
     sex_color = ['red', 'black']
-    age_width = [2, 2, 2]
-    age_style = [':', '--', '-']
+    age_width = [2, 2, 2, 2, 2, 2, 2, 2]
+    age_style = [':', '--', '-', '-.', (0, (1, 10)), (0, (1, 1)), (0, (5, 5)), (0, (5, 1))]
 
     x, y = emb[:,0], emb[:,1],
 

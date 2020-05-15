@@ -126,11 +126,13 @@ If --original is not used, the following files are expected:
 
     else:
         geom_cols = "Volume SurfArea Eccentricity Elongation Orientation".split(" ")
-        files.append((f"{args.input_dir}/*/outputlabelGeometryMeasures_115Label_AFF.txt", "AFF", geom_cols))
-        files.append((f"{args.input_dir}/*/outputlabelGeometryMeasures_115Label_PHY.txt", "PHY", geom_cols))
+        files.append((f"{args.input_dir}/*/outputlabelGeometryMeasures_115Label.txt", "AFF", geom_cols))
+#        files.append((f"{args.input_dir}/*/outputlabelGeometryMeasures_115Label_AFF.txt", "AFF", geom_cols))
+#        files.append((f"{args.input_dir}/*/outputlabelGeometryMeasures_115Label_PHY.txt", "PHY", geom_cols))
 
         img_cols = "Mean Sigma Skewness Kurtosis Entropy Sum Q05 Q95 Min Max".split(" ")
-        files.append((f"{args.input_dir}/*/outputimageIntensityStat_115Atlas.txt", "IMG", img_cols))
+        files.append((f"{args.input_dir}/*/outputimageIntensityStatWarp_115Label_MNI.txt", "IMG", img_cols))
+#        files.append((f"{args.input_dir}/*/outputimageIntensityStat_115Atlas.txt", "IMG", img_cols))
 
     df = read_all(*files)
     df.to_csv(args.output)
