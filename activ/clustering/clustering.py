@@ -24,25 +24,26 @@ from umap import UMAP
 from ..data_normalization import data_normalization
 from ..sampler import JackknifeSampler, BootstrapSampler, SubSampler
 
+
 def path_tuple(type_name, **kwargs):
     from collections import namedtuple
     keys = sorted(kwargs.keys())
     tup = namedtuple(type_name, keys)
     return tup(**kwargs)
 
-class UmapClusteringResults(object):
 
+class UmapClusteringResults(object):
     path = path_tuple("UmapClusteringResultsPath",
-        scores = 'score',
-        norm_scores = 'norm_score',
-        cluster_sizes = 'cluster_sizes',
-        umap_dimensions = 'umap_dimensions',
-        umap_n_neighbors = "umap_n_neighbors",
-        umap_min_dist = "umap_min_dist",
-        seed = "seed",
-        clusters = "clusters",
-        embeddings = "umap_embeddings"
-    )
+                      scores='score',
+                      norm_scores='norm_score',
+                      cluster_sizes='cluster_sizes',
+                      umap_dimensions='umap_dimensions',
+                      umap_n_neighbors="umap_n_neighbors",
+                      umap_min_dist="umap_min_dist",
+                      seed="seed",
+                      clusters="clusters",
+                      embeddings="umap_embeddings"
+                      )
 
     def __init__(self, results_path):
         self.outdir = _op.dirname(_op.abspath(results_path))
@@ -58,13 +59,13 @@ class UmapClusteringResults(object):
 
     def reshape(self, dat):
         s = dat.shape
-        x = _np.zeros((s[1], s[2], s[0]*s[3]))
+        x = _np.zeros((s[1], s[2], s[0] * s[3]))
         for i in range(s[1]):
             for j in range(s[2]):
                 b = 0
                 for k in range(s[0]):
                     e = b + s[3]
-                    x[i,j,b:e] = dat[k,i,j]
+                    x[i, j, b:e] = dat[k, i, j]
                     b = e
         return x
 
@@ -75,7 +76,7 @@ class UmapClusteringResults(object):
         func = getattr(_np, op)
         acc = func(self.__acc, axis=2)
         chance = func(self.__chance, axis=2)
-        return acc/chance
+        return acc / chance
 
     def make_heatmap(self, path=None, op='mean'):
         """
@@ -120,19 +121,20 @@ class UmapClusteringResults(object):
 #           score = accuracy_score(label, pred)
 
 
-
 def get_rank_size(comm):
     if comm is None:
         return 1, 1
     else:
         return comm.Get_rank(), comm.Get_size()
 
-def compute_umap_distance(X, n_components, metric='euclidean', n_iters=30, agg='median', umap_kwargs=dict(), random_state=None):
-    if agg  not in ('mean', 'median'):
+
+def compute_umap_distance(X, n_components, metric='euclidean', n_iters=30, agg='median', umap_kwargs=dict(),
+                          random_state=None):
+    if agg not in ('mean', 'median'):
         raise ValueError("Unrecognized argument for agg: '%s'" % agg)
     rand = check_random_state(random_state)
     n = X.shape[0]
-    samples = np.zeros(((n*(n-1))//2, n_iters))
+    samples = np.zeros(((n * (n - 1)) // 2, n_iters))
     umap = UMAP(n_components=n_components, random_state=rand, **umap_kwargs)
     for i in range(n_iters):
         emb = umap.fit_transform(X)
@@ -148,6 +150,7 @@ def compute_umap_distance(X, n_components, metric='euclidean', n_iters=30, agg='
 def log(logger, msg):
     if logger is not None:
         logger.info(msg)
+
 
 def _cluster_and_predict(X, dist, cluster_sizes, **kwargs):
     """
@@ -166,7 +169,7 @@ def _cluster_and_predict(X, dist, cluster_sizes, **kwargs):
     logger = kwargs.get('logger', None)
     cv = kwargs.get('cv', 5)
     classifier = kwargs.get('classifier', RFC(n_estimators=100, random_state=rand))
-    if len(dist.shape) != 1:    # assume samples have been passed in
+    if len(dist.shape) != 1:  # assume samples have been passed in
         if X.shape[0] != dist.shape[0]:
             raise ValueError("X and dist must have the same number of samples: %d != %d" % (X.shape[0], dist.shape[0]))
         dist = pdist(dist, metric=metric)
@@ -180,6 +183,7 @@ def _cluster_and_predict(X, dist, cluster_sizes, **kwargs):
         preds[:, nclust] = cross_val_predict(classifier, X, true_labels[:, nclust], cv=cv, n_jobs=1)
         chances[:, nclust] = cross_val_predict(classifier, X, rand_labels[:, nclust], cv=cv, n_jobs=1)
     return true_labels, rand_labels, preds, chances
+
 
 def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_sizes, logger, classifier, cv, agg):
     """
@@ -207,7 +211,8 @@ def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_size
             predictions of randomized labels for each sample of each boostrap replicate
     """
     log(logger, 'computing UMAP distance matrix')
-    dist = compute_umap_distance(y, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs, n_iters=n_umap_iters, agg=agg)
+    dist = compute_umap_distance(y, n_components=umap_dims, random_state=rand, umap_kwargs=umap_kwargs,
+                                 n_iters=n_umap_iters, agg=agg)
     kwargs = dict(
         random_state=rand,
         logger=logger,
@@ -216,10 +221,10 @@ def _umap_cluster(X, y, umap_dims, rand, umap_kwargs, n_umap_iters, cluster_size
     )
     return _cluster_and_predict(X, dist, cluster_sizes, **kwargs)
 
-def _run_umap_clustering(X, y, cluster_sizes, sampler, agg='median', metric='euclidean',
-                        classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
-                        random_state=None, umap_kwargs=dict(), logger=None):
 
+def _run_umap_clustering(X, y, cluster_sizes, sampler, agg='median', metric='euclidean',
+                         classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
+                         random_state=None, umap_kwargs=dict(), logger=None):
     """
     Arguments:
 
@@ -287,7 +292,7 @@ def _run_umap_clustering(X, y, cluster_sizes, sampler, agg='median', metric='euc
         logger=logger,
         cv=cv,
         classifier=classifier,
-	agg=agg
+        agg=agg
     )
 
     for i, (X_p, y_p) in enumerate(sampler.sample(X, y)):
@@ -298,8 +303,8 @@ def _run_umap_clustering(X, y, cluster_sizes, sampler, agg='median', metric='euc
 
 
 def jackknifed_umap_clustering(X, y, cluster_sizes, indices=None, agg='median', metric='euclidean',
-                                 classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
-                                 random_state=None, umap_kwargs=dict(), logger=None):
+                               classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
+                               random_state=None, umap_kwargs=dict(), logger=None):
     """
     Arguments:
 
@@ -340,7 +345,6 @@ def jackknifed_umap_clustering(X, y, cluster_sizes, indices=None, agg='median', 
             predictions of randomized labels for each sample of each boostrap replicate
     """
 
-
     kwargs = dict(
         X=X,
         y=y,
@@ -353,16 +357,15 @@ def jackknifed_umap_clustering(X, y, cluster_sizes, indices=None, agg='median', 
         random_state=random_state,
         umap_kwargs=umap_kwargs,
         logger=logger,
-	agg=agg
+        agg=agg
     )
     kwargs['sampler'] = JackknifeSampler(indices=indices)
     return _run_umap_clustering(**kwargs)
 
 
 def bootstrapped_umap_clustering(X, y, cluster_sizes, n_iters=None, agg='median', metric='euclidean',
-                              classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
-                              random_state=None, umap_kwargs=dict(), logger=None):
-
+                                 classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
+                                 random_state=None, umap_kwargs=dict(), logger=None):
     """
     Arguments:
 
@@ -415,15 +418,15 @@ def bootstrapped_umap_clustering(X, y, cluster_sizes, n_iters=None, agg='median'
         random_state=random_state,
         umap_kwargs=umap_kwargs,
         logger=logger,
-	agg=agg
+        agg=agg
     )
     kwargs['sampler'] = BootstrapSampler(n_iters, random_state=random_state)
     return _run_umap_clustering(**kwargs)
 
 
 def subsample_umap_clustering(X, y, cluster_sizes, n_iters=None, subsample_size=None, agg='median', metric='euclidean',
-                             classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
-                             random_state=None, umap_kwargs=dict(), logger=None):
+                              classifier=None, cv=5, n_umap_iters=30, umap_dims=2,
+                              random_state=None, umap_kwargs=dict(), logger=None):
     """
     Arguments:
 
@@ -479,10 +482,11 @@ def subsample_umap_clustering(X, y, cluster_sizes, n_iters=None, subsample_size=
         random_state=random_state,
         umap_kwargs=umap_kwargs,
         logger=logger,
-	agg=agg
+        agg=agg
     )
     kwargs['sampler'] = SubSampler(n_iters, subsample_size=subsample_size, random_state=random_state)
     return _run_umap_clustering(**kwargs)
+
 
 def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, metric='mahalanobis',
                        predict_data=None, h5group=None, classifier=RFC(100),
@@ -526,7 +530,7 @@ def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, met
 
     """
     if seed is None:
-        seed = int(round(_time() * 1000) % 2**32)
+        seed = int(round(_time() * 1000) % 2 ** 32)
     iterations = range(n_iters)
     rank = 0
     if mpicomm:
@@ -588,17 +592,22 @@ def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, met
             close_grp = True
         logger.info('saving results to %s (%s)' % (h5group.name, h5group.file.filename))
         score = h5group.create_dataset(UmapClusteringResults.path.scores, shape=output_shape, dtype=_np.float64)
-        norm_score = h5group.create_dataset(UmapClusteringResults.path.norm_scores, shape=output_shape, dtype=_np.float64)
+        norm_score = h5group.create_dataset(UmapClusteringResults.path.norm_scores, shape=output_shape,
+                                            dtype=_np.float64)
         clusters = h5group.create_dataset(UmapClusteringResults.path.clusters, shape=clusters_shape, dtype=int)
-        all_embeddings = h5group.create_dataset(UmapClusteringResults.path.embeddings, shape=embeddings_shape, dtype=_np.float64)
+        all_embeddings = h5group.create_dataset(UmapClusteringResults.path.embeddings, shape=embeddings_shape,
+                                                dtype=_np.float64)
 
-        emb_scale_dset = h5group.create_dataset(UmapClusteringResults.path.embeddings + '_dimscale', dtype=int, shape=(len(emb_scale),))
+        emb_scale_dset = h5group.create_dataset(UmapClusteringResults.path.embeddings + '_dimscale', dtype=int,
+                                                shape=(len(emb_scale),))
         all_embeddings.dims.create_scale(emb_scale_dset, "Embedding size")
         all_embeddings.dims[2].attach_scale(emb_scale_dset)
-        umap_dims_dset = h5group.create_dataset(UmapClusteringResults.path.umap_dimensions, dtype=int, shape=(len(umap_dims),))
+        umap_dims_dset = h5group.create_dataset(UmapClusteringResults.path.umap_dimensions, dtype=int,
+                                                shape=(len(umap_dims),))
         n_neighbors_dset = h5group.create_dataset(UmapClusteringResults.path.umap_n_neighbors, dtype=int, shape=())
         min_dist_dset = h5group.create_dataset(UmapClusteringResults.path.umap_min_dist, dtype=_np.float64, shape=())
-        cluster_sizes_dset = h5group.create_dataset(UmapClusteringResults.path.cluster_sizes, dtype=int, shape=(len(cluster_sizes),))
+        cluster_sizes_dset = h5group.create_dataset(UmapClusteringResults.path.cluster_sizes, dtype=int,
+                                                    shape=(len(cluster_sizes),))
         seed_dset = h5group.create_dataset(UmapClusteringResults.path.seed, dtype=int, shape=())
         if rank == 0:
             emb_scale_dset[()] = emb_scale
@@ -616,16 +625,17 @@ def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, met
     result = _np.zeros(output_shape[1:], dtype=_np.float64)
     norm_result = _np.zeros(output_shape[1:])
     all_clusters = _np.zeros(clusters_shape[1:], dtype=int)
-    dists = _np.zeros((len(umap_dims), n*(n-1)//2), dtype=_np.float64)
+    dists = _np.zeros((len(umap_dims), n * (n - 1) // 2), dtype=_np.float64)
     normalized = data_normalization(cluster_data, 'z-score')
     for iter_i in iterations:
         logger.info("BEGIN iteration %s" % iter_i)
         embeddings = None
         if precomputed_embeddings is None:
             dim_b = 0
-            for ii, num_dims in enumerate(umap_dims): # umap dimension
+            for ii, num_dims in enumerate(umap_dims):  # umap dimension
                 dim_e = dim_b + num_dims
-                embedding = UMAP(n_components=num_dims, n_neighbors=n_neighbors, min_dist=min_dist).fit_transform(normalized)
+                embedding = UMAP(n_components=num_dims, n_neighbors=n_neighbors, min_dist=min_dist).fit_transform(
+                    normalized)
                 all_embeddings[iter_i, :, dim_b:dim_e] = embedding
                 dim_b = dim_e
             embeddings = all_embeddings
@@ -642,7 +652,7 @@ def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, met
                 logger.info('num_clusters: %s' % num_clusters)
                 result[jj] = cross_val_predict(classifier, predict_data, labels, cv=5)
                 norm_result[jj] = cross_val_predict(classifier, predict_data, _np.random.permutation(labels), cv=5)
-            all_clusters[:]  = cluster_results.T
+            all_clusters[:] = cluster_results.T
         else:
             for ii in range(dists.shape[0]):
                 dist = dists[ii]
@@ -651,8 +661,9 @@ def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, met
                     labels = cluster_results[:, jj]
                     num_clusters = cluster_sizes[jj]
                     logger.info('umap_dims: %s, num_clusters: %s' % (umap_dims[ii], num_clusters))
-                    result[ii,jj] = cross_val_predict(classifier, predict_data, labels, cv=5)
-                    norm_result[ii,jj] = cross_val_predict(classifier, predict_data, _np.random.permutation(labels), cv=5)
+                    result[ii, jj] = cross_val_predict(classifier, predict_data, labels, cv=5)
+                    norm_result[ii, jj] = cross_val_predict(classifier, predict_data, _np.random.permutation(labels),
+                                                            cv=5)
                 all_clusters[ii] = cluster_results.T
 
         logger.info("END iteration %s" % iter_i)
@@ -682,7 +693,7 @@ def plot_line(x, med, lower=None, upper=None, ax=None, color='red', label=None, 
         ax = plt.gca()
     eb_kwargs = dict(x=x, y=med, color=color, fmt='-o', label=label)
     if lower is not None and upper is not None:
-        eb_kwargs['yerr'] = [med-lower,upper-med]
+        eb_kwargs['yerr'] = [med - lower, upper - med]
     ax.errorbar(**eb_kwargs)
     if title is not None:
         ax.set_title(title, fontsize=20)
@@ -691,23 +702,23 @@ def plot_line(x, med, lower=None, upper=None, ax=None, color='red', label=None, 
     if ylabel is not None:
         ax.set_ylabel(ylabel)
 
-def get_avg(ar, i):
 
+def get_avg(ar, i):
     p = float('nan')
     for ii in reversed(range(i)):
         if not np.isinf(ar[ii]):
             p = ar[ii]
             break
     n = float('nan')
-    for ii in range(i+1, ar.shape[0]):
+    for ii in range(i + 1, ar.shape[0]):
         if not np.isinf(ar[ii]):
             n = ar[ii]
             break
     ret = 0.0
     if not np.isnan(p):
-        ret += p/2
+        ret += p / 2
     if not np.isnan(n):
-        ret += n/2
+        ret += n / 2
     if ret == 0.0:
         raise ValueError('flanking values average to 0.0 -- '
                          'this seems unlikely -- '
@@ -717,6 +728,7 @@ def get_avg(ar, i):
 
 def linefit_func(x, a, b, c):
     return a + b * np.exp(c * x)
+
 
 def ttest_min(noc_filt, foc_filt, mean, std, nobs, pvalue_cutoff):
     uniq = np.unique(noc_filt)
@@ -742,14 +754,15 @@ def ttest_min(noc_filt, foc_filt, mean, std, nobs, pvalue_cutoff):
     return min_noc
 
 
-def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.025)), use_median=False, spread_asm=False, spread_foc=True):
+def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.025)), use_median=False,
+                   spread_asm=False, spread_foc=True):
     uniq = np.unique(noc_filt)
 
     asm_upper = mean
     asm_lower = mean
 
     if spread_asm:
-        asm_std = n_sigma*std
+        asm_std = n_sigma * std
         asm_upper += asm_std
         asm_lower -= asm_std
 
@@ -771,7 +784,7 @@ def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.
             foc_upper = foc_mean
             foc_lower = foc_mean
             if spread_foc:
-                foc_std = n_sigma*np.std(_foc)
+                foc_std = n_sigma * np.std(_foc)
                 foc_upper += foc_std
                 foc_lower -= foc_std
 
@@ -780,6 +793,7 @@ def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.
             break
 
     return min_noc
+
 
 def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, iqr=True,
             ttest_cutoff=True, ax=None, f_kwargs=None, a_kwargs=None,
@@ -799,19 +813,19 @@ def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, iqr=True
     try:
         popt, pcov = spo.curve_fit(linefit_func, x_fit, y_fit, p0=np.array([-1, -1, 0]))
         lim = popt[0]
-        lim_sd = np.sqrt(pcov[0,0])
+        lim_sd = np.sqrt(pcov[0, 0])
     except RuntimeError as e:
         print(e)
         return 0
 
     if n_sigma is None:
-        n_sigma = np.abs(sps.norm.ppf((1-ci)/2))
+        n_sigma = np.abs(sps.norm.ppf((1 - ci) / 2))
 
     if ttest_cutoff:
         min_noc = ttest_min(noc_filt, foc_filt, lim, lim_sd, x_fit.shape[0], pvalue_cutoff)
     else:
-        min_noc = ci_overlap_min(noc_filt, foc_filt, lim, lim_sd, n_sigma=n_sigma, spread_asm=spread_asm, spread_foc=spread_foc, use_median=use_median)
-
+        min_noc = ci_overlap_min(noc_filt, foc_filt, lim, lim_sd, n_sigma=n_sigma, spread_asm=spread_asm,
+                                 spread_foc=spread_foc, use_median=use_median)
 
     if plot:
         if med is None:
@@ -834,23 +848,20 @@ def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, iqr=True
 
         ax.plot(x_plot, np.repeat(lim, 1000), **_kwargs)
         q = 1.96
-        ax.fill_between(x_plot, np.repeat(lim-n_sigma*lim_sd, 1000), np.repeat(lim+n_sigma*lim_sd, 1000),
+        ax.fill_between(x_plot, np.repeat(lim - n_sigma * lim_sd, 1000), np.repeat(lim + n_sigma * lim_sd, 1000),
                         color='lightgray', label="limit 95%% CI: %.3f" % lim_sd)
 
     return min_noc
 
-if __name__ == '__main__':
 
+def main(args):
     from activ import load_data
     import time
-    import math
     from mpi4py import MPI
     import h5py
 
     from ..readfile import TrackTBIFile
-    from ..utils import get_logger, get_start_portion, int_list, check_seed
-
-    from argparse import ArgumentParser
+    from ..utils import get_logger, get_start_portion
 
     samplers = {
         'subsample': subsample_umap_clustering,
@@ -858,29 +869,6 @@ if __name__ == '__main__':
         'jackknife': jackknifed_umap_clustering
     }
 
-    parser = ArgumentParser(usage="%(prog)s [options] output_h5")
-
-
-    parser.add_argument('output', type=str, help='the output HDF5 file')
-
-    parser.add_argument('-s', '--seed', type=check_seed, help='the seed to use for running the pipeline', default=None)
-
-    parser.add_argument("-d", "--data", type=str, help="the Track TBI dataset file. use activ.load_data() by default", default=None)
-    parser.add_argument("-p", "--pdata", type=str, help="the Track TBI dataset file to use for predictions. use activ.load_data() by default", default=None)
-    parser.add_argument("-i", "--iterations", type=int, help="the number of subsampling iterations to run", default=50)
-    parser.add_argument("-f", "--fraction", type=float, help="the fraction of the original dataset to use with sampler=subsample", default=0.9)
-    parser.add_argument("-c", "--cluster_sizes", type=int_list, help="a comma-separated list of the cluster sizes",
-                        default=list(range(2, 15)))
-    parser.add_argument("-u", "--umap_iters", type=int, help="the number of iterations to do with UMAP", default=30)
-    parser.add_argument("-a", "--aggregate", type=str, help="type of aggregating", default='median')
-    parser.add_argument("-D", "--dead", action='store_true', help="use dead data", default=False)
-    parser.add_argument('-S', '--sampler', type=str, choices=list(samplers.keys()), help='the sampler to use', default='subsample')
-
-    args = parser.parse_args()
-
-
-    data = None         # source of data for building clusters
-    pdata = None        # source of data for predicting cluster labels
     if args.data is None:
         if args.dead is True:
             data = load_data(dead=True)
@@ -897,11 +885,9 @@ if __name__ == '__main__':
     else:
         pdata = TrackTBIFile(args.pdata)
 
-
     fkwargs = dict()
 
     cluster_sizes = args.cluster_sizes
-    n_iters = args.iterations
 
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -926,13 +912,11 @@ if __name__ == '__main__':
     logger = get_logger(name="umap_clustering", fmt=fmt)
 
     kwargs = dict(agg=args.aggregate, n_umap_iters=args.umap_iters, logger=logger)
-    shape=None
+
     if args.sampler == 'jackknife':
-        kwargs['indices'] =list(range(start, start+portion))
-        shape = (n, n-1, len(cluster_sizes))
+        kwargs['indices'] = list(range(start, start + portion))
     else:
         kwargs['n_iters'] = portion
-        shape = (args.iterations, args.iterations, len(cluster_sizes))
         if args.sampler == 'subsample':
             kwargs['subsample_size'] = args.fraction
 
@@ -954,11 +938,10 @@ if __name__ == '__main__':
     rlabels_dset = f.create_dataset('rlabels', dtype=int, shape=shape)
     rpreds_dset = f.create_dataset('rpreds', dtype=int, shape=shape)
 
-
-    labels_dset[start:start+portion] = labels
-    preds_dset[start:start+portion] = preds
-    rlabels_dset[start:start+portion] = rlabels
-    rpreds_dset[start:start+portion] = rpreds
+    labels_dset[start:start + portion] = labels
+    preds_dset[start:start + portion] = preds
+    rlabels_dset[start:start + portion] = rlabels
+    rpreds_dset[start:start + portion] = rpreds
 
     f.create_dataset('seed', data=seed)
     dset = f.create_dataset('num_ranks', data=size)
@@ -973,3 +956,43 @@ if __name__ == '__main__':
 
     if rank == 0:
         logger.info('done')
+
+
+def build_parser():
+    from ..utils import int_list, check_seed
+    from argparse import ArgumentParser
+
+    samplers = {
+        'subsample': subsample_umap_clustering,
+        'bootstrap': bootstrapped_umap_clustering,
+        'jackknife': jackknifed_umap_clustering
+    }
+
+    parser = ArgumentParser(usage="%(prog)s [options] output_h5")
+
+    parser.add_argument('output', type=str, help='the output HDF5 file')
+
+    parser.add_argument('-s', '--seed', type=check_seed, help='the seed to use for running the pipeline', default=None)
+
+    parser.add_argument("-d", "--data", type=str, help="the Track TBI dataset file. use activ.load_data() by default",
+                        default=None)
+    parser.add_argument("-p", "--pdata", type=str,
+                        help="the Track TBI dataset file to use for predictions. use activ.load_data() by default",
+                        default=None)
+    parser.add_argument("-i", "--iterations", type=int, help="the number of subsampling iterations to run", default=50)
+    parser.add_argument("-f", "--fraction", type=float,
+                        help="the fraction of the original dataset to use with sampler=subsample", default=0.9)
+    parser.add_argument("-c", "--cluster_sizes", type=int_list, help="a comma-separated list of the cluster sizes",
+                        default=list(range(2, 15)))
+    parser.add_argument("-u", "--umap_iters", type=int, help="the number of iterations to do with UMAP", default=30)
+    parser.add_argument("-a", "--aggregate", type=str, help="type of aggregating", default='median')
+    parser.add_argument("-D", "--dead", action='store_true', help="use dead data", default=False)
+    parser.add_argument('-S', '--sampler', type=str, choices=list(samplers.keys()), help='the sampler to use',
+                        default='subsample')
+    return parser
+
+
+if __name__ == '__main__':
+    parser = build_parser()
+    args = parser.parse_args()
+    main(args)
