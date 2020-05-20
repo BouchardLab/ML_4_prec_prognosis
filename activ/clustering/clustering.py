@@ -839,18 +839,14 @@ def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, iqr=True
 
     return min_noc
 
-if __name__ == '__main__':
-
+def main(args):
     from activ import load_data
     import time
-    import math
     from mpi4py import MPI
     import h5py
 
     from ..readfile import TrackTBIFile
-    from ..utils import get_logger, get_start_portion, int_list, check_seed
-
-    from argparse import ArgumentParser
+    from ..utils import get_logger, get_start_portion
 
     samplers = {
         'subsample': subsample_umap_clustering,
@@ -858,29 +854,6 @@ if __name__ == '__main__':
         'jackknife': jackknifed_umap_clustering
     }
 
-    parser = ArgumentParser(usage="%(prog)s [options] output_h5")
-
-
-    parser.add_argument('output', type=str, help='the output HDF5 file')
-
-    parser.add_argument('-s', '--seed', type=check_seed, help='the seed to use for running the pipeline', default=None)
-
-    parser.add_argument("-d", "--data", type=str, help="the Track TBI dataset file. use activ.load_data() by default", default=None)
-    parser.add_argument("-p", "--pdata", type=str, help="the Track TBI dataset file to use for predictions. use activ.load_data() by default", default=None)
-    parser.add_argument("-i", "--iterations", type=int, help="the number of subsampling iterations to run", default=50)
-    parser.add_argument("-f", "--fraction", type=float, help="the fraction of the original dataset to use with sampler=subsample", default=0.9)
-    parser.add_argument("-c", "--cluster_sizes", type=int_list, help="a comma-separated list of the cluster sizes",
-                        default=list(range(2, 15)))
-    parser.add_argument("-u", "--umap_iters", type=int, help="the number of iterations to do with UMAP", default=30)
-    parser.add_argument("-a", "--aggregate", type=str, help="type of aggregating", default='median')
-    parser.add_argument("-D", "--dead", action='store_true', help="use dead data", default=False)
-    parser.add_argument('-S', '--sampler', type=str, choices=list(samplers.keys()), help='the sampler to use', default='subsample')
-
-    args = parser.parse_args()
-
-
-    data = None         # source of data for building clusters
-    pdata = None        # source of data for predicting cluster labels
     if args.data is None:
         if args.dead is True:
             data = load_data(dead=True)
@@ -897,11 +870,9 @@ if __name__ == '__main__':
     else:
         pdata = TrackTBIFile(args.pdata)
 
-
     fkwargs = dict()
 
     cluster_sizes = args.cluster_sizes
-    n_iters = args.iterations
 
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -926,13 +897,11 @@ if __name__ == '__main__':
     logger = get_logger(name="umap_clustering", fmt=fmt)
 
     kwargs = dict(agg=args.aggregate, n_umap_iters=args.umap_iters, logger=logger)
-    shape=None
+
     if args.sampler == 'jackknife':
-        kwargs['indices'] =list(range(start, start+portion))
-        shape = (n, n-1, len(cluster_sizes))
+        kwargs['indices'] = list(range(start, start + portion))
     else:
         kwargs['n_iters'] = portion
-        shape = (args.iterations, args.iterations, len(cluster_sizes))
         if args.sampler == 'subsample':
             kwargs['subsample_size'] = args.fraction
 
@@ -954,11 +923,10 @@ if __name__ == '__main__':
     rlabels_dset = f.create_dataset('rlabels', dtype=int, shape=shape)
     rpreds_dset = f.create_dataset('rpreds', dtype=int, shape=shape)
 
-
-    labels_dset[start:start+portion] = labels
-    preds_dset[start:start+portion] = preds
-    rlabels_dset[start:start+portion] = rlabels
-    rpreds_dset[start:start+portion] = rpreds
+    labels_dset[start:start + portion] = labels
+    preds_dset[start:start + portion] = preds
+    rlabels_dset[start:start + portion] = rlabels
+    rpreds_dset[start:start + portion] = rpreds
 
     f.create_dataset('seed', data=seed)
     dset = f.create_dataset('num_ranks', data=size)
@@ -973,3 +941,43 @@ if __name__ == '__main__':
 
     if rank == 0:
         logger.info('done')
+
+def build_parser():
+    from ..utils import int_list, check_seed
+    from argparse import ArgumentParser
+
+    samplers = {
+        'subsample': subsample_umap_clustering,
+        'bootstrap': bootstrapped_umap_clustering,
+        'jackknife': jackknifed_umap_clustering
+    }
+
+    parser = ArgumentParser(usage="%(prog)s [options] output_h5")
+
+    parser.add_argument('output', type=str, help='the output HDF5 file')
+
+    parser.add_argument('-s', '--seed', type=check_seed, help='the seed to use for running the pipeline', default=None)
+
+    parser.add_argument("-d", "--data", type=str, help="the Track TBI dataset file. use activ.load_data() by default",
+                        default=None)
+    parser.add_argument("-p", "--pdata", type=str,
+                        help="the Track TBI dataset file to use for predictions. use activ.load_data() by default",
+                        default=None)
+    parser.add_argument("-i", "--iterations", type=int, help="the number of subsampling iterations to run", default=50)
+    parser.add_argument("-f", "--fraction", type=float,
+                        help="the fraction of the original dataset to use with sampler=subsample", default=0.9)
+    parser.add_argument("-c", "--cluster_sizes", type=int_list, help="a comma-separated list of the cluster sizes",
+                        default=list(range(2, 15)))
+    parser.add_argument("-u", "--umap_iters", type=int, help="the number of iterations to do with UMAP", default=30)
+    parser.add_argument("-a", "--aggregate", type=str, help="type of aggregating", default='median')
+    parser.add_argument("-D", "--dead", action='store_true', help="use dead data", default=False)
+    parser.add_argument('-S', '--sampler', type=str, choices=list(samplers.keys()), help='the sampler to use',
+                        default='subsample')
+    return parser
+
+
+if __name__ == '__main__':
+    parser = build_parser()
+    args = parser.parse_args()
+    main(args)
+
