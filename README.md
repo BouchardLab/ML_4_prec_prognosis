@@ -37,5 +37,7 @@ CT analysis is done using executable submodules, rather than executable Python s
 1. Reformat data using `python -m activ.ct.convert`
 2. Summarize data using `python -m activ.ct.summarize`
 
+Test data for running step 1 can be found in `data/ct/115Label_fake`.
+
 # References
 1. Zhiqiang Xu and Ping Lie, [Towards Practical Alternating Least-Squares for CCA](https://papers.nips.cc/paper/9616-towards-practical-alternating-least-squares-for-cca)
