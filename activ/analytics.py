@@ -1,10 +1,8 @@
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.pyplot as plt
-import itertools
 import h5py
 import os
-import scipy
 from sklearn.metrics import accuracy_score
 
 from scipy.stats import pearsonr
@@ -226,7 +224,6 @@ def plot_clustering_results(input_file, plot_this, specific_plot_name=None):
         raw_acc[jj,:] = acc
         normalized_acc[jj,:] = norm_acc
     plt.rcParams["figure.figsize"] = [10,10]
-    cmap = plt.get_cmap("tab10")
     lower = np.asarray([np.percentile(fold_over_chance[i,:], 25) for i in range(num_clust)])
     upper = np.asarray([np.percentile(fold_over_chance[i,:], 75) for i in range(num_clust)])
     med = np.median(fold_over_chance, axis=1)
@@ -289,7 +286,6 @@ def plot_clustering_results_activ_data(group_name, plot_this, specific_plot_name
             raw_acc[jj,:] = acc
             normalized_acc[jj,:] = norm_acc
         plt.rcParams["figure.figsize"] = [10,10]
-        cmap = plt.get_cmap("tab10")
         lower = np.asarray([np.percentile(fold_over_chance[i,:], 25) for i in range(num_clust)])
         upper = np.asarray([np.percentile(fold_over_chance[i,:], 75) for i in range(num_clust)])
         med = np.median(fold_over_chance, axis=1)
@@ -331,7 +327,6 @@ def return_plot_items(path):
     try:
         labels = f['labels'][:]
         preds = f['preds'][:]
-        rlabels = f['rlabels'][:]
         rpreds = f['rpreds'][:]
         cluster_sizes = f['cluster_sizes'][:]
     finally:
@@ -348,17 +343,7 @@ def return_plot_items(path):
             accuracy[cl, sample] = accuracy_score(labels[sl], preds[sl])
             chance[cl, sample] = accuracy_score(labels[sl], rpreds[sl])
     foc = accuracy/chance
-
-    accuracy_lower = np.percentile(accuracy, 25, axis=1)
-    accuracy_med = np.percentile(accuracy, 50, axis=1)
-    accuracy_upper = np.percentile(accuracy, 75, axis=1)
-
-    chance_lower = np.percentile(chance, 25, axis=1)
-    chance_med = np.percentile(chance, 50, axis=1)
-    chance_upper = np.percentile(chance, 75, axis=1)
-
     foc_lower = np.percentile(foc, 25, axis=1)
-    foc_med = np.percentile(foc, 50, axis=1)
     foc_upper = np.percentile(foc, 75, axis=1)
 
     iqr = foc_upper-foc_lower

@@ -127,7 +127,7 @@ if __name__ == '__main__':
     comm_parent = MPI.Comm.Get_parent()
 
     # Initialise all the buffers to receive logging messages
-    buffers = [(array.array('b', b'\0') * _message_maxlen) for pi in range(comm_parent.remote_size)]
+    buffers = [(array.array('b', b'\0') * _message_maxlen) for _ in range(comm_parent.remote_size)]
     requests = []
 
     # Create a request for checking if we should exit

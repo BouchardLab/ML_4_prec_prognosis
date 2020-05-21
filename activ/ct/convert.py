@@ -1,10 +1,6 @@
-import matplotlib.pyplot as plt
-from activ import load_data
-import re
 import pandas as pd
 import glob
 import os
-import numpy as np
 
 
 def read_file(glob_path, prefix, cols):
@@ -39,7 +35,6 @@ def read_file(glob_path, prefix, cols):
                         feats = {}
                     i = l.rfind('-')
                     patient_ids.append(l[i-2:i+5])
-                    #patient_ids.append(l[:-1].split()[-1])
                 else:
                     data = l.split()
                     label = int(data[0])

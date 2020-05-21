@@ -1,5 +1,5 @@
 from sklearn.utils import check_random_state
-from sklearn.preprocessing import scale, normalize
+from sklearn.preprocessing import normalize
 from sklearn.linear_model import Lasso
 from sklearn.base import BaseEstimator
 import numpy as np
@@ -59,7 +59,7 @@ def tals_cca(X, Y, k, max_iters=1000, tol=0.0001, random_state=None, rx=0.001, r
     S_t = None
 
     n_iters = 0
-    for t in range(max_iters):
+    for _ in range(max_iters):
         H_init = H_t1.dot(LA.pinv(inprod(H_t1.T, Cxx)).dot(inprod(H_t1.T, Cxy, S_t1.T)))
         # solve for H_t, initialized at H_init, use S_t1
         H_t = cdsolve(X, Y.dot(S_t1), H_init, rx/2, random_state)

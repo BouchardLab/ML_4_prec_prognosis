@@ -49,12 +49,11 @@ def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitlin
     colors, patches = None, None
     mk_kwargs = dict(marker='o', color='none')
     scatter_kwargs = dict()
-    colors_key = None
+
     if solid_points:
         markersize = markersize or 5
         scatter_kwargs['c'] = colors
         colors_key = 'c'
-        #ax.scatter(_x, _y, c=colors, s=marker_size)
     else:
         markersize = markersize or 9
         mk_kwargs['markerfacecolor'] = 'none'
@@ -62,7 +61,6 @@ def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitlin
         colors_key = 'edgecolors'
         scatter_kwargs['facecolors'] = 'none'
         scatter_kwargs['linewidths'] = mk_kwargs['markeredgewidth']
-        #ax.scatter(_x, _y, edgecolors=colors, facecolors='none', s=markersize)
 
     mk_kwargs['markersize'] = markersize
     scatter_kwargs['s'] = markersize**2
@@ -98,8 +96,5 @@ def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitlin
         yfit = regressor.predict(xfit)
 
         ax.plot(xfit, yfit, color='black')
-        xpos = np.mean([np.max(x), np.min(x)])
-        ypos = np.min(y) + 0.2* (np.max(y) - np.min(y))
         ax.text(0.7, 0.1, "$R^2$ (fit) = %0.4f\n$R^2$ (cv) = %0.4f" % (raw_r2, cv_r2), size=fontsize, transform=ax.transAxes)
-        #ax.text(xpos, ypos, "$R^2$ (fit) = %0.4f\n$R^2$ (cv) = %0.4f" % (raw_r2, cv_r2), size=16)
     return ax

@@ -1,12 +1,7 @@
 from sklearn.decomposition import PCA, FactorAnalysis, NMF, FastICA, DictionaryLearning
-from sklearn.manifold import MDS
 from sklearn.ensemble import RandomForestClassifier as RFC
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import accuracy_score
-from sklearn import datasets
-from sklearn.linear_model import LogisticRegression
-import h5py
-import numpy as np
 from scipy.cluster.hierarchy import linkage, cut_tree
 from scipy.spatial.distance import pdist
 from umap import UMAP

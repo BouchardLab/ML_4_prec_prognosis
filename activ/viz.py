@@ -3,7 +3,6 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 
-import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 import matplotlib.colors as mpc
 
@@ -18,7 +17,6 @@ def get_labels(column, palette='hls', marker=None, solid_points=False,
     colors = sns.color_palette(palette, len(uniq)).as_hex()[::-1]
     lut = dict(zip(uniq, colors))
     labels = pd.Series([lut[v] for v in column])
-    patches = [mpatches.Patch(color=c, label=l) for l, c in lut.items()]
     _kwargs = dict()
     _kwargs.update(marker_kwargs)
     if marker is not None:
