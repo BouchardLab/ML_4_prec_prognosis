@@ -14,7 +14,6 @@ def read_clustering_results(path):
     try:
         labels = f['labels'][:]
         preds = f['preds'][:]
-        rlabels = f['rlabels'][:]
         rpreds = f['rpreds'][:]
         cluster_sizes = f['cluster_sizes'][:]
     finally:
@@ -58,7 +57,6 @@ def flatten(noc, foc, filter_inf=True, smooth=True):
         c = w // 2
         kernel = signal.hann(w)
         kernel /= kernel.sum()
-        noc = noc
         new_foc = foc[:]
         for i in range(foc.shape[1]):
             sub = foc[:, i]
@@ -82,7 +80,6 @@ def filter_iqr(noc, foc, s=1.5):
     """
     mask = np.zeros(foc.size, dtype=bool)
     lower = np.zeros(noc.shape[0])
-    med = np.zeros(noc.shape[0])
     upper = np.zeros(noc.shape[0])
     step = foc.shape[1]
     b = 0
@@ -109,7 +106,6 @@ def summarize_flattened(x, y, iqr=False):
     lower = np.zeros(uniq.shape[0])
     med = np.zeros(uniq.shape[0])
     upper = np.zeros(uniq.shape[0])
-    q = 1.96
     for i, c in enumerate(uniq):
         idx = x == c
         if iqr:

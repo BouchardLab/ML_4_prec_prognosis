@@ -1,7 +1,6 @@
 """
 A subpackage for carrying out parametric bootstrap simulation of mixture model data
 """
-import numpy as np
 from sklearn.utils import check_random_state
 from sklearn.datasets import make_classification
 
@@ -25,25 +24,12 @@ def simdata(n_bm_features, n_oc_features, n_blobs, n_samples, random_state=None,
         X += rs.normal(0, 1, X.shape)
     return X, Y, labels
 
-if __name__ == '__main__':
+
+def main(argv):
     import argparse
     from ..readfile import load_data, TrackTBIFile
     from ..utils import check_seed, int_list, get_logger
-    from activ.clustering import compute_umap_distance
-    from scipy.cluster.hierarchy import linkage, cut_tree
     import h5py
-    from sklearn.linear_model import LinearRegression, MultiTaskLassoCV, MultiTaskElasticNetCV
-    from sklearn.ensemble import RandomForestRegressor
-
-    REG_CHOICES = {
-        'rf': RandomForestRegressor(n_estimators=200),
-        'linear': LinearRegression(),
-        'lasso': MultiTaskLassoCV(),
-        'enet': MultiTaskElasticNetCV(),
-        'random': None
-    }
-
-    desc = "simulate clusters using make_classification"
 
     def_cluster_sizes = [5, 10, 15, 20, 25, 30]
     parser = argparse.ArgumentParser()
@@ -51,20 +37,20 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--cluster_sizes', type=int_list, help='number of clusters', default=def_cluster_sizes)
     parser.add_argument('-s', '--seed', type=check_seed, help='random seed. default is based on clock', default='')
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     logger = get_logger(name='pbsim')
     logger.info(f'using seed {args.seed}')
 
     random_state = check_random_state(args.seed)
 
-
     dat = load_data()
     bm = dat.biomarkers
     oc = dat.outcomes
 
+    f = h5py.File(args.outfile, 'a')
+
     try:
-        f = h5py.File(args.outfile, 'a')
         f.attrs['seed'] = args.seed
 
         for i, n_clusters in enumerate(args.cluster_sizes):
@@ -77,3 +63,9 @@ if __name__ == '__main__':
             g.create_dataset('labels', data=labels)
     finally:
         f.close()
+
+
+if __name__ == '__main__':
+    import sys
+    main(sys.argv[1:])
+

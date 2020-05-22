@@ -1,8 +1,6 @@
 import sklearn.preprocessing as _skp
-import numpy as np
 
 def data_normalization(M, method):
-    ret = None
     if method == 'z-score' or method == 'standard':
         ret = _skp.scale(M)
     elif method == 'positive':

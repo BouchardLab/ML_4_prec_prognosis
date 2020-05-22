@@ -1,7 +1,6 @@
 import sys
 import logging
 import math
-import numpy as np
 from sklearn.preprocessing import LabelEncoder
 import time
 

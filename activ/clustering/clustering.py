@@ -1,10 +1,8 @@
 import os.path as _op
 import h5py as _h5py
 import numpy as _np
-import abc as _abc
 import scipy.spatial.distance as _spd
 import scipy.cluster.hierarchy as _sch
-import scipy.signal as signal
 import logging as _logging
 from time import time as _time
 
@@ -14,7 +12,6 @@ from scipy.cluster.hierarchy import linkage, cut_tree
 import numpy as np
 import scipy.stats as sps
 import scipy.optimize as spo
-from sklearn.metrics import accuracy_score
 from sklearn.utils import check_random_state
 
 from sklearn.ensemble import RandomForestClassifier as RFC
@@ -23,6 +20,7 @@ from sklearn.model_selection import cross_val_score, cross_val_predict
 from umap import UMAP
 from ..data_normalization import data_normalization
 from ..sampler import JackknifeSampler, BootstrapSampler, SubSampler
+from .summarize import  filter_iqr, summarize_flattened, flatten
 
 def path_tuple(type_name, **kwargs):
     from collections import namedtuple
@@ -276,7 +274,6 @@ def _run_umap_clustering(X, y, cluster_sizes, sampler, agg='median', metric='euc
     rand_labels = true_labels.copy()
     preds = np.zeros(true_labels.shape, dtype=np.float64)
     chances = preds.copy()
-    mask = np.ones(n, dtype=bool)
 
     uckwargs = dict(
         umap_dims=umap_dims,
@@ -563,11 +560,9 @@ def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, met
 
     if collapse:
         output_shape = (n_iters, len(cluster_sizes), n)
-        umap_params_shape = (n_iters, len(umap_dims))
         clusters_shape = (n_iters, len(cluster_sizes), n_samples)
     else:
         output_shape = (n_iters, len(umap_dims), len(cluster_sizes), n)
-        umap_params_shape = (n_iters, len(umap_dims))
         clusters_shape = (n_iters, len(umap_dims), len(cluster_sizes), n_samples)
     embeddings_shape = (n_iters, n_samples, sum(umap_dims))
     emb_scale = _np.zeros(embeddings_shape[2], dtype=int)
@@ -620,7 +615,6 @@ def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, met
     normalized = data_normalization(cluster_data, 'z-score')
     for iter_i in iterations:
         logger.info("BEGIN iteration %s" % iter_i)
-        embeddings = None
         if precomputed_embeddings is None:
             dim_b = 0
             for ii, num_dims in enumerate(umap_dims): # umap dimension
@@ -833,7 +827,6 @@ def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, iqr=True
             _kwargs.update(a_kwargs)
 
         ax.plot(x_plot, np.repeat(lim, 1000), **_kwargs)
-        q = 1.96
         ax.fill_between(x_plot, np.repeat(lim-n_sigma*lim_sd, 1000), np.repeat(lim+n_sigma*lim_sd, 1000),
                         color='lightgray', label="limit 95%% CI: %.3f" % lim_sd)
 

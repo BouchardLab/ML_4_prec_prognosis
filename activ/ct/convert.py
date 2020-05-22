@@ -1,10 +1,6 @@
-import matplotlib.pyplot as plt
-from activ import load_data
-import re
 import pandas as pd
 import glob
 import os
-import numpy as np
 
 
 def read_file(glob_path, prefix, cols):
@@ -39,7 +35,6 @@ def read_file(glob_path, prefix, cols):
                         feats = {}
                     i = l.rfind('-')
                     patient_ids.append(l[i-2:i+5])
-                    #patient_ids.append(l[:-1].split()[-1])
                 else:
                     data = l.split()
                     label = int(data[0])
@@ -81,7 +76,7 @@ def read_all(*files):
     return final_df
 
 
-if __name__ == '__main__':
+def main(argv):
     import argparse
 
     epi = """
@@ -110,7 +105,7 @@ If --original is not used, the following files are expected:
     parser.add_argument('output', type=str, help='the path to write the final DataFrame to')
     parser.add_argument('--original', action='store_true', default=False, help='input_dir is directory containing original inputs')
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     files = list()
     if args.original:
@@ -123,7 +118,6 @@ If --original is not used, the following files are expected:
         img_cols = "Mean Sigma Skewness Kurtosis Entropy Sum Q05 Q95 Min Max".split(" ")
         files.append((f"{args.input_dir}/*/outputImageIntensityStat_21Atlas.txt", "IMG_S", img_cols))
         files.append((f"{args.input_dir}/*/outputImageIntensityStat_48Atlas.txt", "IMG_C", img_cols))
-
     else:
         geom_cols = "Volume SurfArea Eccentricity Elongation Orientation".split(" ")
         files.append((f"{args.input_dir}/*/outputlabelGeometryMeasures_115Label_AFF.txt", "AFF", geom_cols))
@@ -132,5 +126,10 @@ If --original is not used, the following files are expected:
         img_cols = "Mean Sigma Skewness Kurtosis Entropy Sum Q05 Q95 Min Max".split(" ")
         files.append((f"{args.input_dir}/*/outputimageIntensityStat_115Atlas.txt", "IMG", img_cols))
 
+
     df = read_all(*files)
     df.to_csv(args.output)
+
+if __name__ == '__main__':
+    import sys
+    main(sys.argv[1:])

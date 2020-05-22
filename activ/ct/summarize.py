@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import scale, normalize as _normalize
+from sklearn.preprocessing import scale
 
 def load_data(tbi_measures_path, orig_tbi_data_path, filter_suffixes=('Sum', 'Min', 'Max', 'Q05', 'Q95'), normalize=True):
     """
@@ -17,11 +17,9 @@ def load_data(tbi_measures_path, orig_tbi_data_path, filter_suffixes=('Sum', 'Mi
     df = pd.read_csv(tbi_measures_path, index_col=0)
 
     ptype = df['PatientType']
-    measures = df.drop('PatientType', axis=1).columns
 
     df_patients = set(df.index)
     sdf_patients = set(sdf.index)
-    bad_patients = list(df_patients ^ sdf_patients)
     df = df.drop(df_patients - sdf_patients, axis=0).sort_index(axis='index')
     sdf = sdf.drop(sdf_patients - df_patients, axis=0).sort_index(axis='index')
 
@@ -46,16 +44,6 @@ def load_data(tbi_measures_path, orig_tbi_data_path, filter_suffixes=('Sum', 'Mi
 
     if normalize:
         X_norm = Xdf.values.copy()
-        #categories = np.unique(ptype)
-        #for cat in categories:
-        #    _mask = ptype==cat
-        #    X_norm[_mask] = scale(X[_mask])
-        #sex = pd.Series([p[0] for p in ptype])
-        #sex_cat = np.unique(sex)
-        #for cat in sex_cat:
-        #    _mask = sex==cat
-        #    X_norm[_mask] = scale(X[_mask])
-        #X_norm = _normalize(X_norm)
         X_norm = scale(X_norm)
         Xdf = pd.DataFrame(data=X_norm, columns=Xdf.columns, index=Xdf.index)
 
@@ -241,11 +229,9 @@ def plot_umap(emb, age, sex, path=None, sf_kwargs=dict(), sp_kwargs=dict()):
     ax_histy.tick_params(direction='in', labelleft=False)
     ax_corner = plt.axes(rect_corner)
     ax_corner.tick_params(axis='both', bottom=False, left=False, labelbottom=False, labelleft=False)
-    plot_kde = True
     leg = list()
     for sex_i, _sex in enumerate(sex_cat):
         sex_mask = sex == _sex
-        label = _sex
         leg.append(mlines.Line2D([], [], color=sex_color[sex_i], label=_sex))
         for age_i, _age in enumerate(age_cat):
             age_mask = age == _age
