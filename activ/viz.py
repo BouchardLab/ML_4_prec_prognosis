@@ -89,8 +89,6 @@ def fitplot(x, y, regressor=LinearRegression(), labels=None, fitline=True,
     else:
         opacity = np.array([1] * x.shape[0])
 
-    colors = colors
-
     if solid_points:
         ax.scatter(p_x, p_y, c=p_c, s=5, marker=m)
     else:
