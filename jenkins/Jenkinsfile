@@ -48,7 +48,7 @@ pipeline {
                sh("sonar-scanner -Dsonar.language=py" +
                   " -Dsonar.python.coverage.reportPaths=artifacts/sonar_cov.xml" +
                   " -Dsonar.sources=activ" +
-                  " -Dsonar.projectKey=${env.COMPONENT_NAME}_${env.TAG_DEFAULT}")
+                  " -Dsonar.projectKey=${env.COMPONENT_NAME}_${env.BRANCH_NAME_NORM}")
            }
        }
     }
