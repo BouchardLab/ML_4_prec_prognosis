@@ -98,7 +98,7 @@ def get_n_samples(labels):
     uniq_lbls = np.sort(np.unique(labels))
     return np.array([np.sum(labels == _) for _ in uniq_lbls])
 
-if __name__ == '__main__':
+def main(argv):
     import argparse
     from ..readfile import load_data, TrackTBIFile
     from ..utils import check_seed, int_list, get_logger
@@ -116,8 +116,6 @@ if __name__ == '__main__':
         'random': None
     }
 
-    desc = "simulate clusters using parameters calculated from original TBI data"
-
     def_cluster_sizes = [5, 10, 15, 20, 25, 30]
     parser = argparse.ArgumentParser()
     parser.add_argument('outfile', type=str, help='the directory to save output to')
@@ -125,9 +123,9 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--seed', type=check_seed, help='random seed. default is based on clock', default='')
     parser.add_argument('-r', '--regressor', choices=REG_CHOICES.keys(), default='linear',
                         help='the type of regressor to use when transforming clusters')
-    parser.add_argument('--no_residuals', action='store_true', default='False', help='do not add error to response matrix')
+    parser.add_argument('--no_residuals', action='store_true', default=False, help='do not add error to response matrix')
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     logger = get_logger(name='pbsim')
     logger.info(f'using seed {args.seed}')
@@ -154,12 +152,11 @@ if __name__ == '__main__':
     regressor = REG_CHOICES[args.regressor]
     logger.info('Regressing outcomes onto biomarkers with\n %s' % str(regressor))
     regressor.fit(bm, oc)
-    # compute residuals, we will use this to estimate an error distrubtion
+    # compute residuals, we will use this to estimate an error distribution
     res = None
     if not args.no_residuals:
         res = oc - regressor.predict(bm)
         res = sps.multivariate_normal(mean=np.mean(res, axis=0), cov=np.diag(np.var(res, axis=0)))
-
 
     def simdata(__labels):
         # compute multivariate Gaussian parameters from data
@@ -172,8 +169,9 @@ if __name__ == '__main__':
         Y = transform_multivariate_data(X, regressor, res, random_state)
         return X, Y, labels
 
+    f = h5py.File(args.outfile, 'a')
+
     try:
-        f = h5py.File(args.outfile, 'a')
         f.attrs['seed'] = args.seed
         if hasattr(regressor, 'coef_'):
             if 'beta' not in f:
@@ -191,3 +189,7 @@ if __name__ == '__main__':
             g.create_dataset('labels', data=labels)
     finally:
         f.close()
+
+if __name__ == '__main__':
+    import sys
+    main(sys.argv[1:])

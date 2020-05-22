@@ -153,8 +153,6 @@ class UoINMFTrackTBIFile(TrackTBIFile):
                                              biomarker_features=biomarker_features,
                                              outcome_features=outcome_features,
                                              patient_ids=patient_ids)
-        bm_dset = h5group.create_dataset(cls.__bm_bases, data=biomarker_bases)
-        oc_dset = h5group.create_dataset(cls.__oc_bases, data=outcome_bases)
         if close_grp:
             h5group.close()
 
