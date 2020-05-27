@@ -56,25 +56,12 @@ def load_data(tbi_measures_path, orig_tbi_data_path, filter_suffixes=('Sum', 'Mi
 
 
 def get_age_sex(ptype):
-    categories = np.unique(ptype)
-
-    # extract sex data
-    sex = np.chararray(ptype.shape[0])
-    sex[:] = 'M'
-    for v in categories[:3]:
-        sex[ptype==v] = 'F'
-    sex = sex.astype('U')
-
-    # extract age data
-    age = np.zeros(ptype.shape[0], dtype='<U10')
-    age_cat = ['16-30', '31-50', '51-100']
-    age[:] = age_cat[0]
-    for v in categories[1::3]:
-        age[ptype==v] = age_cat[1]
-    for v in categories[2::3]:
-        age[ptype==v] = age_cat[2]
-    age = age.astype('U')
-
+    age, sex = list(), list()
+    for i in ptype:
+        sex.append(i[0])
+        age.append(i[2:].replace('_', '-'))
+    age = np.array(age)
+    sex = np.array(sex)
     return age, sex
 
 
@@ -181,21 +168,16 @@ def plot_measure_leverage(measures, X=None, pca=None, palette='Set3', path=None,
 
 
 def plot_umap(emb, age, sex, path=None, sf_kwargs=dict(), sp_kwargs=dict()):
-    """
-    Args:
-        emb:            UMAP embedding
-        age:            age category of each patient
-        sex:            sex of each patient
-        path:           the path to save the plot to
-        sf_kwargs:      keyword arguments for plt.savefig
-        sp_kwargs:      keyword arguments for sns.scatterplot
-    """
     sex_cat = np.sort(np.unique(sex))
     age_cat = np.sort(np.unique(age))
 
     sex_color = ['red', 'black']
     age_width = [2, 2, 2]
     age_style = [':', '--', '-']
+
+    age_color = ['b', 'g', 'r', 'c', 'm', 'y', 'black', 'brown']
+    age_width = np.ones(8)*2
+    sex_style = ['-', ':']
 
     x, y = emb[:,0], emb[:,1],
 
@@ -230,23 +212,25 @@ def plot_umap(emb, age, sex, path=None, sf_kwargs=dict(), sp_kwargs=dict()):
     ax_corner = plt.axes(rect_corner)
     ax_corner.tick_params(axis='both', bottom=False, left=False, labelbottom=False, labelleft=False)
     leg = list()
-    for sex_i, _sex in enumerate(sex_cat):
-        sex_mask = sex == _sex
-        leg.append(mlines.Line2D([], [], color=sex_color[sex_i], label=_sex))
-        for age_i, _age in enumerate(age_cat):
-            age_mask = age == _age
+    counts = np.zeros((len(age_cat), len(sex_cat)), dtype=int)
+    for age_i, _age in enumerate(age_cat):
+        age_mask = age == _age
+        leg.append(mlines.Line2D([], [], color=age_color[age_i], label=_age))
+        for sex_i, _sex in enumerate(sex_cat):
+            sex_mask = sex == _sex
             mask = np.logical_and(sex_mask, age_mask)
-            kde_kws = {'linestyle': age_style[age_i], 'linewidth': age_width[age_i]}
-            dp_kws = dict(hist=False, color=sex_color[sex_i], kde_kws=kde_kws)
+            counts[age_i, sex_i] = mask.sum()
+            kde_kws = {'linestyle': sex_style[sex_i], 'linewidth': age_width[age_i]}
+            dp_kws = dict(hist=False, color=age_color[age_i], kde_kws=kde_kws)
             sns.distplot(emb[mask, 0], ax=ax_histx, **dp_kws)
             sns.distplot(emb[mask, 1], ax=ax_histy, vertical=True, **dp_kws)
 
-    for age_i, _age in list(enumerate(age_cat))[::-1]:
-        leg.append(mlines.Line2D([], [], color='black', linestyle=age_style[age_i], label=age_cat[age_i]),)
+    for sex_i, _sex in list(enumerate(sex_cat))[::-1]:
+        leg.append(mlines.Line2D([], [], color='black', linestyle=sex_style[sex_i], label=sex_cat[sex_i]),)
 
     ax_corner.axis('off')
     ax_corner.legend(handles=leg, loc='lower left')
-    _check_path(path, **sf_kwargs)
+    return pd.DataFrame(data=counts, index=age_cat, columns=sex_cat)
 
 
 def plot_gcs(emb, gcs, legend='brief', path=None, **sf_kwargs):
