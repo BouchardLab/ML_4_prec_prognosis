@@ -212,12 +212,14 @@ def plot_umap(emb, age, sex, path=None, sf_kwargs=dict(), sp_kwargs=dict()):
     ax_corner = plt.axes(rect_corner)
     ax_corner.tick_params(axis='both', bottom=False, left=False, labelbottom=False, labelleft=False)
     leg = list()
+    counts = np.zeros((len(age_cat), len(sex_cat)), dtype=int)
     for age_i, _age in enumerate(age_cat):
         age_mask = age == _age
         leg.append(mlines.Line2D([], [], color=age_color[age_i], label=_age))
         for sex_i, _sex in enumerate(sex_cat):
             sex_mask = sex == _sex
             mask = np.logical_and(sex_mask, age_mask)
+            counts[age_i, sex_i] = mask.sum()
             kde_kws = {'linestyle': sex_style[sex_i], 'linewidth': age_width[age_i]}
             dp_kws = dict(hist=False, color=age_color[age_i], kde_kws=kde_kws)
             sns.distplot(emb[mask, 0], ax=ax_histx, **dp_kws)
@@ -228,6 +230,7 @@ def plot_umap(emb, age, sex, path=None, sf_kwargs=dict(), sp_kwargs=dict()):
 
     ax_corner.axis('off')
     ax_corner.legend(handles=leg, loc='lower left')
+    return pd.DataFrame(data=counts, index=age_cat, columns=sex_cat)
 
 
 def plot_gcs(emb, gcs, legend='brief', path=None, **sf_kwargs):
