@@ -230,6 +230,9 @@ def plot_umap(emb, age, sex, path=None, sf_kwargs=dict(), sp_kwargs=dict()):
 
     ax_corner.axis('off')
     ax_corner.legend(handles=leg, loc='lower left')
+
+    if path is not None:
+        plt.savefig(path, **sf_kwargs)
     return pd.DataFrame(data=counts, index=age_cat, columns=sex_cat)
 
 
@@ -287,7 +290,7 @@ if __name__ == '__main__':
 
     plt.figure(figsize=(8, 8))
 
-    plot_umap(emb, age, sex, path=_p('umap_summary.png'), dpi=300)
+    plot_umap(emb, age, sex, path=_p('umap_summary.png'), sf_kwargs=dict(dpi=300))
 
     plt.figure(figsize=(7,7))
 
