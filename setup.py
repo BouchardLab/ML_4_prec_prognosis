@@ -16,6 +16,8 @@ setup(
     scripts=['bin/run_bootstrap_umap_clustering.py',
              'bin/run_jackknife_umap_clustering.py',
              'bin/run_subsample_umap_clustering.py',
+             'bin/summarize_sweep_results.py',
+             'bin/summarize_umap_clustering.py',
              'bin/make_blob_data.py'],
 
     # Versions should comply with PEP440.  For a discussion on single-sourcing
