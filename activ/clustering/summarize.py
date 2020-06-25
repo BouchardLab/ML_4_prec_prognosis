@@ -149,7 +149,7 @@ def flatten_summarize(noc, measure, filter_inf=True, smooth=True, iqr=True):
     return summarize_flattened(x_flat, y_flat, iqr=iqr)
 
 
-def plot_results(noc, foc, error_bars=True, **plot_args):
+def plot_results(noc, foc, error_bars=True, smooth=True, **plot_args):
     """
     Plot fold-over-chance with error bars
 
@@ -157,7 +157,7 @@ def plot_results(noc, foc, error_bars=True, **plot_args):
         noc          : the number of clusters (as stored in results file)
         foc          : fold-over-chance predictive accuracy (as stored in results file)
     """
-    noc_flat, foc_flat = flatten(noc, foc, filter_inf=False)
+    noc_flat, foc_flat = flatten(noc, foc, smooth=smooth, filter_inf=False)
     x, lower, med, upper = summarize_flattened(noc_flat, foc_flat, iqr=True)
     kwargs = plot_args.copy()
     if error_bars:
