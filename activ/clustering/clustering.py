@@ -22,11 +22,32 @@ from ..data_normalization import data_normalization
 from ..sampler import JackknifeSampler, BootstrapSampler, SubSampler
 from .summarize import  filter_iqr, summarize_flattened, flatten
 
+from ..readfile import TrackTBIFile
+
 def path_tuple(type_name, **kwargs):
     from collections import namedtuple
     keys = sorted(kwargs.keys())
     tup = namedtuple(type_name, keys)
     return tup(**kwargs)
+
+
+def write_clustering_input(dest, X, Y, X_features=None, Y_features=None, sample_ids=None):
+    """
+    Format data for running UMAP clustering pipeline
+
+    Args:
+        dest         : the path to an HDF5 file or the :class:`h5py.Group` to write to
+        X            : the X data with shape (n_samples, n_features)
+        Y            : the Y data with shape (n_samples, n_features)
+        X_features   : the names of the X features (optional)
+        Y_features   : the names of the Y features (optional)
+        sample_ids   : the samplel IDs (optional)
+
+    If X_features, Y_features, or sample_ids are provided, they will be
+    added as dimension scales to the appropriate dimension of their respective datasets.
+    """
+    return TrackTBIFile.write(dest, X, Y, biomarker_features=X_features, outcome_features=Y_features, patient_ids=sample_ids)
+
 
 class UmapClusteringResults(object):
 
