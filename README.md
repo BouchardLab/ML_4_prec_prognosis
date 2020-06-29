@@ -2,6 +2,22 @@
 
 ## Clustering
 
+### Input
+
+Before you can run the clustering pipeline, you will need to generate an input file. Here is an example code snippet that demonstrates
+how to do that:
+
+```Python
+import numpy as np
+from activ.clustering import write_clustering_input
+
+path = 'path_to_save_input.h5'
+X = np.random.random(100).reshape(10,10)
+Y = np.random.random(100).reshape(10,10)
+
+write_clustering_input(path, X, Y)
+```
+
 The following command calls `activ.clustering`, `activ.readfile`, `activ.utils`. This script is used 
 to run a clustering pipeline that clusters response data (i.e. "outcomes") to create labels for each sample. The quality of the
 labels are assessed by predicting those labels with the predictor data (i.e. "biomarkers").
