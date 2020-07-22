@@ -108,7 +108,8 @@ class TALSCCA(BaseEstimator):
 
     def fit(self, X, Y):
         ret = tals_cca(X, Y, self.n_components, max_iters=self.max_iters,
-                       rx=self.alpha_x, ry=self.alpha_y, return_cov=True)
+                       rx=self.alpha_x, ry=self.alpha_y, return_cov=True,
+                       random_state=self.random_state)
         H, S, self.n_iters_ = ret[0], ret[1], ret[2]
         self.X_components_, self.Y_components_ = H.T, S.T
         self.X_cov_ = ret[3]
