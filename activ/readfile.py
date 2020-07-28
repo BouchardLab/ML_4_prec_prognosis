@@ -22,6 +22,14 @@ def write_clustering_input(dest, X, Y, X_features=None, Y_features=None, sample_
     return TrackTBIFile.write(dest, X, Y, biomarker_features=X_features, outcome_features=Y_features, patient_ids=sample_ids)
 
 
+class Decomp(object):
+
+    def __init__(self, bm, oc, bm_bases, oc_bases):
+        self.bm = bm
+        self.oc = oc
+        self.bm_bases = bm_bases
+        self.oc_bases = oc_bases
+
 class TrackTBIFile(object):
 
     __strtype = _h5py.special_dtype(vlen=bytes)
@@ -31,6 +39,18 @@ class TrackTBIFile(object):
     __bm_feat = 'biomarker_features'
     __oc_feat = 'outcome_features'
     __pid = 'patient_ids'
+
+    __bm_feat_type = 'biomarker_type'
+    __oc_feat_type = 'outcome_type'
+
+    __cca = 'cca'
+    __nmf = 'nmf'
+
+    __bases = 'bases'
+
+    @classmethod
+    def bases(cls, d):
+        return d + '_' + cls.__bases
 
     def __init__(self, filename, subgroup=None):
         idx = filename.rfind('.h5/')
@@ -48,15 +68,37 @@ class TrackTBIFile(object):
                 g = f[subgroup]
             self.biomarkers = g[self.__bm][:]
             self.outcomes = g[self.__oc][:]
-            self.biomarker_features = None
-            self.outcome_features = None
-            self.patient_ids = None
-            if self.__bm_feat in g:
-                self.biomarker_features = self.__decode(g[self.__bm_feat])
-            if self.__oc_feat in g:
-                self.outcome_features = self.__decode(g[self.__oc_feat])
-            if self.__pid in g:
-                self.patient_ids = self.__decode(g[self.__pid])
+            self.biomarker_features = self.__check_features(g, self.__bm_feat)
+            self.outcome_features = self.__check_features(g, self.__oc_feat)
+            self.patient_ids = self.__check_features(g, self.__pid)
+            self.biomarker_type = self.__check_feat_types(g, self.__bm_feat_type, self.biomarker_features)
+            self.outcome_type = self.__check_feat_types(g, self.__oc_feat_type, self.outcome_features)
+            self.nmf = self.__check_decomp(self.__nmf, g)
+            self.cca = self.__check_decomp(self.__cca, g)
+
+    def __check_decomp(self, decomp, grp):
+        ret = None
+        if decomp in grp:
+            grp = grp[decomp]
+            bm = g[self.__bm]
+            oc = g[self.__oc]
+            bm_bases = g[self.bases(self.__bm)]
+            oc_bases = g[self.bases(self.__oc)]
+            ret = Decomp(bm, oc, bm_bases, oc_bases)
+        return ret
+
+    def __check_feat_type(self, grp, feat_type, feat_names):
+        ret = dict()
+        if feat_type in grp:
+            grp = grp[feat_type]
+            for k in grp:
+                ret[k] = self.__decode(grp[k])
+        return pd.DataFrame(data=ret, index=feat_names)
+
+    def __check_features(self, grp, features):
+        ret = None
+        if features in grp:
+            return self.__decode(grp[features])
 
     def __decode(self, dset):
         if _h5py.check_dtype(vlen=dset.dtype) == bytes:
@@ -70,11 +112,61 @@ class TrackTBIFile(object):
         ret = grp.create_dataset(name, data=b, dtype=cls.__strtype)
         return ret
 
+    @staticmethod
+    def check_grp(h5group, mode):
+        if isinstance(h5group, str):
+            f = _h5py.File(h5group, mode)
+            return f, True
+        return h5group, False
+
     @classmethod
     def __add_dimscale(cls, dset, dim, scale, ann):
         if scale.attrs.get('CLASS', None) != 'DIMENSION_SCALE':
             dset.dims.create_scale(scale, ann)
         dset.dims[dim].attach_scale(scale)
+
+    @classmethod
+    def write_nmf(cls, h5group, bm, oc, bm_bases, oc_bases):
+        cls.__write_decomp(h5group, cls.__nmf, bm, oc, bm_bases, oc_bases)
+
+    @classmethod
+    def write_cca(cls, h5group, bm, oc, bm_bases, oc_bases):
+        cls.__write_decomp(h5group, cls.__cca, bm, oc, bm_bases, oc_bases)
+
+    @classmethod
+    def __write_decomp(cls, h5group, name, bm, oc, bm_bases, oc_bases):
+        h5group, close = cls.check_grp(h5group, 'a')
+        grp = h5group.create_group(name)
+        grp.create_dataset(cls.__bm, data=bm)
+        grp.create_dataset(cls.__oc, data=oc)
+        grp.create_dataset(cls.bases(cls.__bm), data=bm_bases)
+        grp.create_dataset(cls.bases(cls.__oc), data=oc_bases)
+        if close:
+            h5group.close()
+
+    @classmethod
+    def write_feat_types(cls, h5group, biomarkers, outcomes):
+        # write biomarker feature names
+        h5group, close = cls.check_grp(h5group, 'a')
+        bmt_grp = h5group.require_group(cls.__bm_feat_type)
+        biomarker_type = cls.check_type(biomarkers)
+        for k, v in biomarker_type.items():
+            scale = cls.__write_ascii(bmt_grp, k, v)
+
+        # write outcome feature names
+        oct_grp = h5group.require_group(cls.__oc_feat_type)
+        outcome_type = cls.check_type(outcomes)
+        for k, v in outcome_type.items():
+            scale = cls.__write_ascii(oct_grp, k, v)
+        if close:
+            h5group.close()
+
+    @classmethod
+    def check_type(cls, feat_type):
+        if isinstance(feat_type, dict):
+            return feat_type
+        return {'feat_type': feat_type}
+
 
     @classmethod
     def write(cls, dest, biomarkers, outcomes, biomarker_features=None, outcome_features=None, patient_ids=None):
@@ -94,11 +186,7 @@ class TrackTBIFile(object):
         """
         if biomarkers.shape[0] != outcomes.shape[0]:
             warn("biomarkers and outcomes do not have the same number of samples")
-        h5group = dest
-        close_grp = False
-        if isinstance(dest, str):
-            h5group = _h5py.File(dest, 'w')
-            close_grp = True
+        h5group, close_grp = cls.check_grp(dest, 'w')
         bm_dset = h5group.create_dataset(cls.__bm, data=biomarkers)
         oc_dset = h5group.create_dataset(cls.__oc, data=outcomes)
 
@@ -107,14 +195,12 @@ class TrackTBIFile(object):
             if len(biomarker_features) != biomarkers.shape[1]:
                 warn('biomarker_features length does not match biomarkers second dimension')
             scale = cls.__write_ascii(h5group, cls.__bm_feat, biomarker_features)
-            cls.__add_dimscale(bm_dset, 1, scale, 'Biomarker feature names')
 
         # write outcome feature names
         if outcome_features is not None:
             if len(outcome_features) != outcomes.shape[1]:
                 warn('outcome_features length does not match outcomes second dimension')
             scale = cls.__write_ascii(h5group, cls.__oc_feat, outcome_features)
-            cls.__add_dimscale(oc_dset, 1, scale, 'Outcome feature names')
 
         # write patient IDs
         if patient_ids is not None:
@@ -124,8 +210,6 @@ class TrackTBIFile(object):
             if len(patient_ids) != biomarkers.shape[0]:
                 warn('patient_ids length does not match biomarkers first dimension')
             scale = cls.__write_ascii(h5group, cls.__pid, patient_ids)
-            cls.__add_dimscale(oc_dset, 0, scale, 'Patient IDs')
-            cls.__add_dimscale(bm_dset, 0, scale, 'Patient IDs')
 
         if close_grp:
             h5group.close()
@@ -169,6 +253,8 @@ class UoINMFTrackTBIFile(TrackTBIFile):
                                              biomarker_features=biomarker_features,
                                              outcome_features=outcome_features,
                                              patient_ids=patient_ids)
+        bm_dset = h5group.create_dataset(cls.__bm_bases, data=biomarker_bases)
+        oc_dset = h5group.create_dataset(cls.__oc_bases, data=outcome_bases)
         if close_grp:
             h5group.close()
 
@@ -258,31 +344,25 @@ def get_parser(usage="%(prog)s [options] filepath",
     return parser
 
 
-def load_data(uoinmf=False, dead=False, path=None):
+def load_data(uoinmf=False, dead=False):
     """
     Load a TRACK-TBI dataset.
 
-    Use load_data(uoinmf=True) to load UoI-NMF dataset
+    Use load_data('uoinmf') to laod UoI-NMF dataset
 
     Args:
         uoinmf  : True to load the UoINMF decomposed data
         dead    : True to load dead patients imputed data
-        path    : The path to the data to load. If None,
-                  search packagae data
     """
-    if path is None:
-        if uoinmf:
-            path = resource_filename(__name__, 'data_uoinmf.h5')
-        elif dead:
-            path = resource_filename(__name__, 'data_dead.h5')
-            return TrackTBIFile(path)
-        else:
-            path = resource_filename(__name__, 'data.h5')
-            return TrackTBIFile(path)
-    cls = TrackTBIFile
     if uoinmf:
-        cls = UoINMFTrackTBIFile
-    return cls(path)
+        path = resource_filename(__name__, 'data_uoinmf.h5')
+        return UoINMFTrackTBIFile(path)
+    elif dead:
+        path = resource_filename(__name__, 'data_dead.h5')
+        return TrackTBIFile(path)
+    else:
+        path = resource_filename(__name__, 'data.h5')
+        return TrackTBIFile(path)
 
 
 # 586 samples with 474 features (258 biomarkers and 216 outcomes)
