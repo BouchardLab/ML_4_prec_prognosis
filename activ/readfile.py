@@ -1,6 +1,7 @@
 from argparse import ArgumentTypeError, ArgumentParser
 import h5py as _h5py
 import numpy as _np
+import pandas as pd
 from warnings import warn
 from pkg_resources import resource_filename
 
@@ -71,8 +72,8 @@ class TrackTBIFile(object):
             self.biomarker_features = self.__check_features(g, self.__bm_feat)
             self.outcome_features = self.__check_features(g, self.__oc_feat)
             self.patient_ids = self.__check_features(g, self.__pid)
-            self.biomarker_type = self.__check_feat_types(g, self.__bm_feat_type, self.biomarker_features)
-            self.outcome_type = self.__check_feat_types(g, self.__oc_feat_type, self.outcome_features)
+            self.biomarker_type = self.__check_feat_type(g, self.__bm_feat_type, self.biomarker_features)
+            self.outcome_type = self.__check_feat_type(g, self.__oc_feat_type, self.outcome_features)
             self.nmf = self.__check_decomp(self.__nmf, g)
             self.cca = self.__check_decomp(self.__cca, g)
 
@@ -420,3 +421,83 @@ def load_outcome_mask(trim_col=False):
         cols = load_colmask()
         ret = ret[cols]
     return ret
+
+
+def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
+    if data_dict_path is not None:
+        dd_df = pd.read_csv(data_dict_path, index_col=1)[['domain', 'sub-domain']].fillna(' ')
+
+        # add any missing biomarker columns
+        for c in set(bm_df.columns) - set(dd_df.index):
+            sp = c.split('_')
+            _c = sp[0]
+            __c = '_'.join(sp[0:2])
+            if _c in dd_df.index:
+                # print('Adding missing biomarker', c)
+                s = dd_df.loc[_c]
+                s.name = c
+                dd_df = dd_df.append(s)
+            elif __c in dd_df.index:
+                # print('Adding missing biomarker', c)
+                s = dd_df.loc[__c]
+                s.name = c
+                dd_df = dd_df.append(s)
+
+        # add any missing outcome columns
+        for c in set(oc_df.columns) - set(dd_df.index):
+            _c = '_'.join(c.split('_')[0:2])
+            if _c in dd_df.index:
+                # print('Adding missing outcome', c)
+                s = dd_df.loc[_c]
+                s.name = c
+    else:
+        dd_df = pd.DataFrame(data={'domain': list(), 'sub-domain': list()})
+        for c in bm_df.columns:
+            dd_df = dd_df.append(pd.Series(name=c, data={'domain': 'Biomarker', 'sub-domain': ''}))
+        for c in oc_df.columns:
+            dd_df = dd_df.append(pd.Series(name=c, data={'domain': 'Outcome', 'sub-domain': ''}))
+
+    if ct_df is not None:
+        # add CT columns
+        for c in ct_df.columns:
+            dd_df = dd_df.append(pd.Series(name=c, data={'domain': 'Registered CT measure', 'sub-domain': 'MNI'}))
+    if cntm_df is not None:
+        # add CT columns
+        for c in cntm_df.columns:
+            dd_df = dd_df.append(pd.Series(name=c, data={'domain': 'Connectome', 'sub-domain': ''}))
+
+    pred_colnames = list(bm_df.columns)
+    if ct_df is not None:
+        pred_colnames.extend(ct_df.columns)
+    if cntm_df is not None:
+        pred_colnames.extend(cntm_df.columns)
+
+    return dd_df.filter(pred_colnames, axis=0), dd_df.filter(oc_df.columns, axis=0)
+
+
+def merge_data(scalar_data_path, output_path, ct_df=None, cntm_df=None, data_dict_path=None):
+    """
+    Args:
+        scalar_data_path:     path to scalar data
+        output_path:          path to save final data to
+        ct_df:                CT data frame
+        cntm_df:              connectome data frame
+    """
+    tbi = TrackTBIFile(scalar_data_path)
+
+    pred_dfs = [pd.DataFrame(data=tbi.biomarkers, index=tbi.patient_ids, columns=tbi.biomarker_features)]
+    if ct_df is not None:
+        pred_dfs.append(ct_df)
+    if cntm_df is not None:
+        pred_dfs.append(cntm_df)
+
+    bm_df = pd.concat(pred_dfs, axis=1, join='inner') if len(pred_dfs) > 1 else pred_dfs[0]
+    oc_df = pd.DataFrame(data=tbi.outcomes, index=tbi.patient_ids, columns=tbi.outcome_features).filter(bm_df.index, axis=0)
+    TrackTBIFile.write(output_path,
+                    bm_df.values, oc_df.values,
+                    biomarker_features=bm_df.columns,
+                    outcome_features=oc_df.columns,
+                    patient_ids=bm_df.index)
+
+    bm_ft, oc_ft = get_feature_types(data_dict_path, bm_df, oc_df, ct_df=ct_df, cntm_df=cntm_df)
+    TrackTBIFile.write_feat_types(output_path, bm_ft, oc_ft)
