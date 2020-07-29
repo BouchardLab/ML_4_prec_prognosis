@@ -2,7 +2,7 @@ import argparse
 import pandas as pd
 
 from activ.ct.summarize import load_data
-from activ.readfile import merge_data
+from activ.readfile import merge_data, TrackTBIFile
 
 parser = argparse.ArgumentParser()
 parser.add_argument('cleaned', help='path to cleaned TRACK-TBI data, in HDF5 format')
@@ -11,6 +11,7 @@ parser.add_argument('-c', '--ct_path', help='path to preprocessed CT data, in CS
 parser.add_argument('-r', '--scalar_path', help='path to original TRACK-TBI data, in CSV format')
 parser.add_argument('-t', '--connectome_path', help='path to original connectome data, in CSV format')
 parser.add_argument('-d', '--data_dict_path', help='path to the data dictionary file')
+parser.add_argument('-T', '--test_read', action='store_true', default=False, help='read data in to make sure it was written appropriately')
 
 args = parser.parse_args()
 
@@ -23,3 +24,6 @@ if args.connectome_path:
     cntm_df = pd.read_csv(args.connectome_path, header=0, index_col=0)
 
 merge_data(args.cleaned, args.output, ct_df=ct_df, cntm_df=cntm_df, data_dict_path=args.data_dict_path)
+
+if args.test_read:
+    TrackTBIFile(args.output)
