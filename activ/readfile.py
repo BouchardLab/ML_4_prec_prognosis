@@ -81,10 +81,10 @@ class TrackTBIFile(object):
         ret = None
         if decomp in grp:
             grp = grp[decomp]
-            bm = g[self.__bm]
-            oc = g[self.__oc]
-            bm_bases = g[self.bases(self.__bm)]
-            oc_bases = g[self.bases(self.__oc)]
+            bm = grp[self.__bm]
+            oc = grp[self.__oc]
+            bm_bases = grp[self.bases(self.__bm)]
+            oc_bases = grp[self.bases(self.__oc)]
             ret = Decomp(bm, oc, bm_bases, oc_bases)
         return ret
 
@@ -127,17 +127,20 @@ class TrackTBIFile(object):
         dset.dims[dim].attach_scale(scale)
 
     @classmethod
-    def write_nmf(cls, h5group, bm, oc, bm_bases, oc_bases):
-        cls.__write_decomp(h5group, cls.__nmf, bm, oc, bm_bases, oc_bases)
+    def write_nmf(cls, h5group, bm, oc, bm_bases, oc_bases, metadata=None):
+        cls.__write_decomp(h5group, cls.__nmf, bm, oc, bm_bases, oc_bases, metadata)
 
     @classmethod
-    def write_cca(cls, h5group, bm, oc, bm_bases, oc_bases):
-        cls.__write_decomp(h5group, cls.__cca, bm, oc, bm_bases, oc_bases)
+    def write_cca(cls, h5group, bm, oc, bm_bases, oc_bases, metadata=None):
+        cls.__write_decomp(h5group, cls.__cca, bm, oc, bm_bases, oc_bases, metadata)
 
     @classmethod
-    def __write_decomp(cls, h5group, name, bm, oc, bm_bases, oc_bases):
+    def __write_decomp(cls, h5group, name, bm, oc, bm_bases, oc_bases, metadata=None):
         h5group, close = cls.check_grp(h5group, 'a')
         grp = h5group.create_group(name)
+        if metadata is not None:
+            for k, v in metadata.items():
+                grp.attrs[k] = v
         grp.create_dataset(cls.__bm, data=bm)
         grp.create_dataset(cls.__oc, data=oc)
         grp.create_dataset(cls.bases(cls.__bm), data=bm_bases)
@@ -450,6 +453,7 @@ def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
                 # print('Adding missing outcome', c)
                 s = dd_df.loc[_c]
                 s.name = c
+                dd_df = dd_df.append(s)
     else:
         dd_df = pd.DataFrame(data={'domain': list(), 'sub-domain': list()})
         for c in bm_df.columns:
@@ -460,7 +464,7 @@ def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
     if ct_df is not None:
         # add CT columns
         for c in ct_df.columns:
-            dd_df = dd_df.append(pd.Series(name=c, data={'domain': 'Registered CT measure', 'sub-domain': 'MNI'}))
+            dd_df = dd_df.append(pd.Series(name=c, data={'domain': 'Registered CT', 'sub-domain': 'MNI'}))
     if cntm_df is not None:
         # add CT columns
         for c in cntm_df.columns:
@@ -472,7 +476,9 @@ def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
     if cntm_df is not None:
         pred_colnames.extend(cntm_df.columns)
 
-    return dd_df.filter(pred_colnames, axis=0), dd_df.filter(oc_df.columns, axis=0)
+    bm_df, oc_df = dd_df.filter(pred_colnames, axis=0), dd_df.filter(oc_df.columns, axis=0)
+
+    return bm_df['domain'] + ' - ' + bm_df['sub-domain'] , oc_df['domain'] + ' - ' + oc_df['sub-domain']
 
 
 def merge_data(scalar_data_path, output_path, ct_df=None, cntm_df=None, data_dict_path=None):
@@ -485,19 +491,20 @@ def merge_data(scalar_data_path, output_path, ct_df=None, cntm_df=None, data_dic
     """
     tbi = TrackTBIFile(scalar_data_path)
 
-    pred_dfs = [pd.DataFrame(data=tbi.biomarkers, index=tbi.patient_ids, columns=tbi.biomarker_features)]
+    bm_df = pd.DataFrame(data=tbi.biomarkers, index=tbi.patient_ids, columns=tbi.biomarker_features)
+    pred_dfs = [bm_df]
     if ct_df is not None:
         pred_dfs.append(ct_df)
     if cntm_df is not None:
         pred_dfs.append(cntm_df)
 
-    bm_df = pd.concat(pred_dfs, axis=1, join='inner') if len(pred_dfs) > 1 else pred_dfs[0]
-    oc_df = pd.DataFrame(data=tbi.outcomes, index=tbi.patient_ids, columns=tbi.outcome_features).filter(bm_df.index, axis=0)
+    pred_df = pd.concat(pred_dfs, axis=1, join='inner') if len(pred_dfs) > 1 else pred_dfs[0]
+    oc_df = pd.DataFrame(data=tbi.outcomes, index=tbi.patient_ids, columns=tbi.outcome_features).filter(pred_df.index, axis=0)
     TrackTBIFile.write(output_path,
-                    bm_df.values, oc_df.values,
-                    biomarker_features=bm_df.columns,
+                    pred_df.values, oc_df.values,
+                    biomarker_features=pred_df.columns,
                     outcome_features=oc_df.columns,
-                    patient_ids=bm_df.index)
+                    patient_ids=pred_df.index)
 
     bm_ft, oc_ft = get_feature_types(data_dict_path, bm_df, oc_df, ct_df=ct_df, cntm_df=cntm_df)
     TrackTBIFile.write_feat_types(output_path, bm_ft, oc_ft)
