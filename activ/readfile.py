@@ -108,8 +108,10 @@ class TrackTBIFile(object):
             return dset[:]
 
     @classmethod
-    def __write_ascii(cls, grp, name, it):
+    def __write_ascii(cls, grp, name, it, overwrite=False):
         b = [bytes(x, 'utf-8') for x in it]
+        if name in grp and overwrite:
+            del grp[name]
         ret = grp.create_dataset(name, data=b, dtype=cls.__strtype)
         return ret
 
@@ -138,37 +140,38 @@ class TrackTBIFile(object):
     def __write_decomp(cls, h5group, name, bm, oc, bm_bases, oc_bases, metadata=None, overwrite=False):
         h5group, close = cls.check_grp(h5group, 'a')
         grp = h5group.require_group(name)
-        if metadata is not None:
-            for k, v in metadata.items():
-                grp.attrs[k] = v
         pairs = [
-            (cls.__bm, data=bm),
-            (cls.__oc, data=oc),
-            (cls.bases(cls.__bm), data=bm_bases),
-            (cls.bases(cls.__oc), data=oc_bases),
+            (cls.__bm, bm),
+            (cls.__oc, oc),
+            (cls.bases(cls.__bm), bm_bases),
+            (cls.bases(cls.__oc), oc_bases),
         ]
         for name, data in pairs:
             if overwrite:
                 if name in grp:
                     del grp[name]
             grp.create_dataset(name, data=data)
+
+        if metadata is not None:
+            for k, v in metadata.items():
+                grp.attrs[k] = v
         if close:
             h5group.close()
 
     @classmethod
-    def write_feat_types(cls, h5group, biomarkers, outcomes):
+    def write_feat_types(cls, h5group, biomarkers, outcomes, **kwargs):
         # write biomarker feature names
         h5group, close = cls.check_grp(h5group, 'a')
         bmt_grp = h5group.require_group(cls.__bm_feat_type)
         biomarker_type = cls.check_type(biomarkers)
         for k, v in biomarker_type.items():
-            scale = cls.__write_ascii(bmt_grp, k, v)
+            scale = cls.__write_ascii(bmt_grp, k, v, **kwargs)
 
         # write outcome feature names
         oct_grp = h5group.require_group(cls.__oc_feat_type)
         outcome_type = cls.check_type(outcomes)
         for k, v in outcome_type.items():
-            scale = cls.__write_ascii(oct_grp, k, v)
+            scale = cls.__write_ascii(oct_grp, k, v, **kwargs)
         if close:
             h5group.close()
 
