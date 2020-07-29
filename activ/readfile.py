@@ -127,24 +127,31 @@ class TrackTBIFile(object):
         dset.dims[dim].attach_scale(scale)
 
     @classmethod
-    def write_nmf(cls, h5group, bm, oc, bm_bases, oc_bases, metadata=None):
-        cls.__write_decomp(h5group, cls.__nmf, bm, oc, bm_bases, oc_bases, metadata)
+    def write_nmf(cls, h5group, bm, oc, bm_bases, oc_bases, **kwargs):
+        cls.__write_decomp(h5group, cls.__nmf, bm, oc, bm_bases, oc_bases, **kwargs)
 
     @classmethod
-    def write_cca(cls, h5group, bm, oc, bm_bases, oc_bases, metadata=None):
-        cls.__write_decomp(h5group, cls.__cca, bm, oc, bm_bases, oc_bases, metadata)
+    def write_cca(cls, h5group, bm, oc, bm_bases, oc_bases, **kwargs):
+        cls.__write_decomp(h5group, cls.__cca, bm, oc, bm_bases, oc_bases, **kwargs)
 
     @classmethod
-    def __write_decomp(cls, h5group, name, bm, oc, bm_bases, oc_bases, metadata=None):
+    def __write_decomp(cls, h5group, name, bm, oc, bm_bases, oc_bases, metadata=None, overwrite=False):
         h5group, close = cls.check_grp(h5group, 'a')
-        grp = h5group.create_group(name)
+        grp = h5group.require_group(name)
         if metadata is not None:
             for k, v in metadata.items():
                 grp.attrs[k] = v
-        grp.create_dataset(cls.__bm, data=bm)
-        grp.create_dataset(cls.__oc, data=oc)
-        grp.create_dataset(cls.bases(cls.__bm), data=bm_bases)
-        grp.create_dataset(cls.bases(cls.__oc), data=oc_bases)
+        pairs = [
+            (cls.__bm, data=bm),
+            (cls.__oc, data=oc),
+            (cls.bases(cls.__bm), data=bm_bases),
+            (cls.bases(cls.__oc), data=oc_bases),
+        ]
+        for name, data in pairs:
+            if overwrite:
+                if name in grp:
+                    del grp[name]
+            grp.create_dataset(name, data=data)
         if close:
             h5group.close()
 
