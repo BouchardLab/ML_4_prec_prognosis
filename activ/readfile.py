@@ -33,7 +33,7 @@ class Decomp(object):
 
 class TrackTBIFile(object):
 
-    __strtype = _h5py.special_dtype(vlen=bytes)
+    __strtype = _h5py.special_dtype(vlen=str)
 
     __bm = 'biomarkers'
     __oc = 'outcomes'
@@ -77,6 +77,15 @@ class TrackTBIFile(object):
             self.nmf = self.__check_decomp(self.__nmf, g)
             self.cca = self.__check_decomp(self.__cca, g)
 
+    def biomarker_df(self):
+        return pd.DataFrame(data=self.biomarkers, columns=self.biomarker_features, index=self.patient_ids)
+
+    def outcome_df(self):
+        return pd.DataFrame(data=self.outcomes, columns=self.outcome_features, index=self.patient_ids)
+
+    def datadict_df(self):
+        return pd.concat([self.biomarker_features, self.outcome_features])
+
     def __check_decomp(self, decomp, grp):
         ret = None
         if decomp in grp:
@@ -109,10 +118,10 @@ class TrackTBIFile(object):
 
     @classmethod
     def __write_ascii(cls, grp, name, it, overwrite=False):
-        b = [bytes(x, 'utf-8') for x in it]
+        #b = [bytes(x, 'utf-8') for x in it]
         if name in grp and overwrite:
             del grp[name]
-        ret = grp.create_dataset(name, data=b, dtype=cls.__strtype)
+        ret = grp.create_dataset(name, data=it, dtype=cls.__strtype)
         return ret
 
     @staticmethod
@@ -436,6 +445,27 @@ def load_outcome_mask(trim_col=False):
     return ret
 
 
+def _combine(df, domain=True, subdomain=True):
+    if domain and subdomain:
+        if len(df['sub-domain']) > 0:
+            subdd = df['domain'] + ' - ' + df['sub-domain']
+        else:
+            subdd = df['domain']
+    elif subdomain:
+        subdd = df['sub-domain']
+    else:
+        subdd = df['domain']
+    return subdd
+
+
+def _clean_label(label):
+    d, s = [s.strip() for s in label.split(' - ')]
+    if len(s) == 0:
+        return d
+    else:
+        return s
+
+
 def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
     if data_dict_path is not None:
         dd_df = pd.read_csv(data_dict_path, index_col=1)[['domain', 'sub-domain']].fillna(' ')
@@ -486,9 +516,12 @@ def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
     if cntm_df is not None:
         pred_colnames.extend(cntm_df.columns)
 
-    bm_df, oc_df = dd_df.filter(pred_colnames, axis=0), dd_df.filter(oc_df.columns, axis=0)
+    # cleaned up data-dictionary values
+    cleaned_dd = [_clean_label(l) for l in (dd_df['domain'] + ' - ' + dd_df['sub-domain']).values]
+    dd_df = pd.DataFrame(data=cleaned_dd, index=dd_df.index)
 
-    return bm_df['domain'] + ' - ' + bm_df['sub-domain'] , oc_df['domain'] + ' - ' + oc_df['sub-domain']
+    bm_df, oc_df = dd_df.filter(pred_colnames, axis=0), dd_df.filter(oc_df.columns, axis=0)
+    return bm_df, oc_df
 
 
 def merge_data(scalar_data_path, output_path, ct_df=None, cntm_df=None, data_dict_path=None):
@@ -517,4 +550,4 @@ def merge_data(scalar_data_path, output_path, ct_df=None, cntm_df=None, data_dic
                     patient_ids=pred_df.index)
 
     bm_ft, oc_ft = get_feature_types(data_dict_path, bm_df, oc_df, ct_df=ct_df, cntm_df=cntm_df)
-    TrackTBIFile.write_feat_types(output_path, bm_ft, oc_ft)
+    TrackTBIFile.write_feat_types(output_path, bm_ft.values.squeeze(), oc_ft.values.squeeze())
