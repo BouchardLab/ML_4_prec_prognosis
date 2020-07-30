@@ -1,6 +1,6 @@
 from pyuoi.decomposition.NMF import UoI_NMF, UoI_NMF_Base
 from sklearn.cluster import KMeans
-from activ.readfile import TrackTBIFile
+from activ import TrackTBIFile
 from activ.utils import get_logger
 from activ.data_normalization import data_normalization
 from datetime import  datetime
