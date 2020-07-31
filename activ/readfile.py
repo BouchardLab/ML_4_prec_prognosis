@@ -77,6 +77,14 @@ class TrackTBIFile(object):
             self.nmf = self.__check_decomp(self.__nmf, g)
             self.cca = self.__check_decomp(self.__cca, g)
 
+        idx = _np.where(self.biomarker_features == 'GCSMildModSevereRecode')[0][0]
+        gcs_simple = self.biomarkers[idx]
+        self.gcs_simple = _np.zeros(len(gcs_simple), dtype='U8')
+        self.gcs_simple[gcs_simple == 0.0] = 'Mild'
+        self.gcs_simple[gcs_simple == 1.0] = 'Moderate'
+        self.gcs_simple[gcs_simple == 2.0] = 'Severe'
+
+
     def biomarker_df(self):
         return pd.DataFrame(data=self.biomarkers, columns=self.biomarker_features, index=self.patient_ids)
 
@@ -84,16 +92,16 @@ class TrackTBIFile(object):
         return pd.DataFrame(data=self.outcomes, columns=self.outcome_features, index=self.patient_ids)
 
     def datadict_df(self):
-        return pd.concat([self.biomarker_features, self.outcome_features])
+        return pd.concat([self.biomarker_type, self.outcome_type])
 
     def __check_decomp(self, decomp, grp):
         ret = None
         if decomp in grp:
             grp = grp[decomp]
-            bm = grp[self.__bm]
-            oc = grp[self.__oc]
-            bm_bases = grp[self.bases(self.__bm)]
-            oc_bases = grp[self.bases(self.__oc)]
+            bm = grp[self.__bm][:]
+            oc = grp[self.__oc][:]
+            bm_bases = grp[self.bases(self.__bm)][:]
+            oc_bases = grp[self.bases(self.__oc)][:]
             ret = Decomp(bm, oc, bm_bases, oc_bases)
         return ret
 
@@ -445,19 +453,6 @@ def load_outcome_mask(trim_col=False):
     return ret
 
 
-def _combine(df, domain=True, subdomain=True):
-    if domain and subdomain:
-        if len(df['sub-domain']) > 0:
-            subdd = df['domain'] + ' - ' + df['sub-domain']
-        else:
-            subdd = df['domain']
-    elif subdomain:
-        subdd = df['sub-domain']
-    else:
-        subdd = df['domain']
-    return subdd
-
-
 def _clean_label(label):
     d, s = [s.strip() for s in label.split(' - ')]
     if len(s) == 0:
@@ -468,6 +463,7 @@ def _clean_label(label):
 
 def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
     if data_dict_path is not None:
+        # read from TRACK-TBI supplied data dict
         dd_df = pd.read_csv(data_dict_path, index_col=1)[['domain', 'sub-domain']].fillna(' ')
 
         # add any missing biomarker columns
@@ -495,6 +491,7 @@ def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
                 s.name = c
                 dd_df = dd_df.append(s)
     else:
+        # make up feature classes
         dd_df = pd.DataFrame(data={'domain': list(), 'sub-domain': list()})
         for c in bm_df.columns:
             dd_df = dd_df.append(pd.Series(name=c, data={'domain': 'Biomarker', 'sub-domain': ''}))
@@ -510,16 +507,18 @@ def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
         for c in cntm_df.columns:
             dd_df = dd_df.append(pd.Series(name=c, data={'domain': 'Connectome', 'sub-domain': ''}))
 
+    # add CT or connectome data if its been provided
     pred_colnames = list(bm_df.columns)
     if ct_df is not None:
         pred_colnames.extend(ct_df.columns)
     if cntm_df is not None:
         pred_colnames.extend(cntm_df.columns)
 
-    # cleaned up data-dictionary values
+    # cleaned up data-dictionary values -- some features do not have a sub-domain
     cleaned_dd = [_clean_label(l) for l in (dd_df['domain'] + ' - ' + dd_df['sub-domain']).values]
     dd_df = pd.DataFrame(data=cleaned_dd, index=dd_df.index)
 
+    # filter to order things appropriately
     bm_df, oc_df = dd_df.filter(pred_colnames, axis=0), dd_df.filter(oc_df.columns, axis=0)
     return bm_df, oc_df
 
@@ -527,13 +526,15 @@ def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
 def merge_data(scalar_data_path, output_path, ct_df=None, cntm_df=None, data_dict_path=None):
     """
     Args:
-        scalar_data_path:     path to scalar data
+        scalar_data_path:     path to TRACK-TBI scalar data
         output_path:          path to save final data to
         ct_df:                CT data frame
         cntm_df:              connectome data frame
+        data_dict_path:       the path to the data dictionary CSV from TRACK-TBI
     """
     tbi = TrackTBIFile(scalar_data_path)
 
+    # read data into data frames for ease of merging
     bm_df = pd.DataFrame(data=tbi.biomarkers, index=tbi.patient_ids, columns=tbi.biomarker_features)
     pred_dfs = [bm_df]
     if ct_df is not None:
@@ -541,13 +542,17 @@ def merge_data(scalar_data_path, output_path, ct_df=None, cntm_df=None, data_dic
     if cntm_df is not None:
         pred_dfs.append(cntm_df)
 
+    # merge data
     pred_df = pd.concat(pred_dfs, axis=1, join='inner') if len(pred_dfs) > 1 else pred_dfs[0]
     oc_df = pd.DataFrame(data=tbi.outcomes, index=tbi.patient_ids, columns=tbi.outcome_features).filter(pred_df.index, axis=0)
+
+    # write merged data
     TrackTBIFile.write(output_path,
                     pred_df.values, oc_df.values,
                     biomarker_features=pred_df.columns,
                     outcome_features=oc_df.columns,
                     patient_ids=pred_df.index)
 
+    # write feature types
     bm_ft, oc_ft = get_feature_types(data_dict_path, bm_df, oc_df, ct_df=ct_df, cntm_df=cntm_df)
     TrackTBIFile.write_feat_types(output_path, bm_ft.values.squeeze(), oc_ft.values.squeeze())
