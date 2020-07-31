@@ -19,8 +19,9 @@ setup(
              'bin/summarize_sweep_results.py',
              'bin/summarize_umap_clustering.py',
              'bin/make_blob_data.py',
-             'bin/plot_cca_results.py',
+             'bin/merge_tracktbi.py',
              'bin/run_uoinmf.py',
+             'bin/plot_cca_results.py',
              'bin/run_cca.py',
              'bin/plot_uoinmf_results.py'],
 
