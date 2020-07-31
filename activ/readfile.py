@@ -1,6 +1,6 @@
 from argparse import ArgumentTypeError, ArgumentParser
-import h5py as _h5py
-import numpy as _np
+import h5py as h5py
+import numpy as np
 import pandas as pd
 from warnings import warn
 from pkg_resources import resource_filename
@@ -33,7 +33,7 @@ class Decomp(object):
 
 class TrackTBIFile(object):
 
-    __strtype = _h5py.special_dtype(vlen=str)
+    __strtype = h5py.special_dtype(vlen=str)
 
     __bm = 'biomarkers'
     __oc = 'outcomes'
@@ -63,7 +63,7 @@ class TrackTBIFile(object):
             filename, subgroup = filename[:idx], filename[idx:]
 
         self.filename = filename
-        with _h5py.File(self.filename, 'r') as f:
+        with h5py.File(self.filename, 'r') as f:
             g = f
             if subgroup is not None:
                 g = f[subgroup]
@@ -77,9 +77,9 @@ class TrackTBIFile(object):
             self.nmf = self.__check_decomp(self.__nmf, g)
             self.cca = self.__check_decomp(self.__cca, g)
 
-        idx = _np.where(self.biomarker_features == 'GCSMildModSevereRecode')[0][0]
-        gcs_simple = self.biomarkers[idx]
-        self.gcs_simple = _np.zeros(len(gcs_simple), dtype='U8')
+        idx = np.where(self.biomarker_features == 'GCSMildModSevereRecode')[0][0]
+        gcs_simple = self.biomarkers[:, idx]
+        self.gcs_simple = np.zeros(len(gcs_simple), dtype='U8')
         self.gcs_simple[gcs_simple == 0.0] = 'Mild'
         self.gcs_simple[gcs_simple == 1.0] = 'Moderate'
         self.gcs_simple[gcs_simple == 2.0] = 'Severe'
@@ -119,23 +119,24 @@ class TrackTBIFile(object):
             return self.__decode(grp[features])
 
     def __decode(self, dset):
-        if _h5py.check_dtype(vlen=dset.dtype) == bytes:
-            return _np.array([s.decode('utf-8') for s in dset])
+        if h5py.check_dtype(vlen=dset.dtype) == bytes:
+            return np.array([s.decode('utf-8') for s in dset])
         else:
             return dset[:]
 
     @classmethod
-    def __write_ascii(cls, grp, name, it, overwrite=False):
+    def __write_str(cls, grp, name, it, overwrite=False):
         #b = [bytes(x, 'utf-8') for x in it]
         if name in grp and overwrite:
             del grp[name]
-        ret = grp.create_dataset(name, data=it, dtype=cls.__strtype)
-        return ret
+        dset = grp.create_dataset(name, shape=(len(it),), dtype=cls.__strtype)
+        dset[:] = it
+        return dset
 
     @staticmethod
     def check_grp(h5group, mode):
         if isinstance(h5group, str):
-            f = _h5py.File(h5group, mode)
+            f = h5py.File(h5group, mode)
             return f, True
         return h5group, False
 
@@ -182,13 +183,13 @@ class TrackTBIFile(object):
         bmt_grp = h5group.require_group(cls.__bm_feat_type)
         biomarker_type = cls.check_type(biomarkers)
         for k, v in biomarker_type.items():
-            scale = cls.__write_ascii(bmt_grp, k, v, **kwargs)
+            scale = cls.__write_str(bmt_grp, k, v, **kwargs)
 
         # write outcome feature names
         oct_grp = h5group.require_group(cls.__oc_feat_type)
         outcome_type = cls.check_type(outcomes)
         for k, v in outcome_type.items():
-            scale = cls.__write_ascii(oct_grp, k, v, **kwargs)
+            scale = cls.__write_str(oct_grp, k, v, **kwargs)
         if close:
             h5group.close()
 
@@ -225,13 +226,13 @@ class TrackTBIFile(object):
         if biomarker_features is not None:
             if len(biomarker_features) != biomarkers.shape[1]:
                 warn('biomarker_features length does not match biomarkers second dimension')
-            scale = cls.__write_ascii(h5group, cls.__bm_feat, biomarker_features)
+            scale = cls.__write_str(h5group, cls.__bm_feat, biomarker_features)
 
         # write outcome feature names
         if outcome_features is not None:
             if len(outcome_features) != outcomes.shape[1]:
                 warn('outcome_features length does not match outcomes second dimension')
-            scale = cls.__write_ascii(h5group, cls.__oc_feat, outcome_features)
+            scale = cls.__write_str(h5group, cls.__oc_feat, outcome_features)
 
         # write patient IDs
         if patient_ids is not None:
@@ -240,7 +241,7 @@ class TrackTBIFile(object):
                 warn('patient_ids length does not match outcomes first dimension')
             if len(patient_ids) != biomarkers.shape[0]:
                 warn('patient_ids length does not match biomarkers first dimension')
-            scale = cls.__write_ascii(h5group, cls.__pid, patient_ids)
+            scale = cls.__write_str(h5group, cls.__pid, patient_ids)
 
         if close_grp:
             h5group.close()
@@ -252,7 +253,7 @@ class UoINMFTrackTBIFile(TrackTBIFile):
 
     def __init__(self, filename):
         super(UoINMFTrackTBIFile, self).__init__(filename)
-        with _h5py.File(self.filename, 'r') as f:
+        with h5py.File(self.filename, 'r') as f:
             self.biomarker_bases = f[self.__bm_bases][:]
             self.outcome_bases = f[self.__oc_bases][:]
 
@@ -278,7 +279,7 @@ class UoINMFTrackTBIFile(TrackTBIFile):
         h5group = dest
         close_grp = False
         if isinstance(dest, str):
-            h5group = _h5py.File(dest, 'w')
+            h5group = h5py.File(dest, 'w')
             close_grp = True
         super(UoINMFTrackTBIFile, cls).write(h5group, biomarkers, outcomes,
                                              biomarker_features=biomarker_features,
