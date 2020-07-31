@@ -32,7 +32,7 @@ def get_nmf_feat_type(H):
     return {'nmf': feat}
 
 
-parser = argparse.ArgumentParser(usage="%(prog)s [options] <hdf5_path>:<dataset_path> <output_hdf5_path>")
+parser = argparse.ArgumentParser(usage="%(prog)s [options] input")
 parser.add_argument('input', type=str, help='the path to the TRACK-TBI input file')
 parser.add_argument('-b', '--n_boots', type=int, help='the number of bootstraps to run', default=20)
 parser.add_argument('-s', '--seed', type=int, help='the seed to use for random number generation', default=-1)
