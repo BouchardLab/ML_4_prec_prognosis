@@ -1,10 +1,25 @@
 #!/bin/bash
 
+function print_help(){
+    echo "Usage: run_all.sh conda_env input output_dir"
+}
+
 function log ()
 {
     local dir=$1
     echo "`date` - $1"
 }
+
+while getopts "h" opt; do 
+    case $opt in
+      h) print_help & exit 0;;
+    esac
+done
+shift $(( $OPTIND - 1))
+if (( $# != 3 )); then
+    print_help
+    exit 1
+fi
 
 ENV=${1:?"Missing conda environment"};
 INPUT=${2:?"Missing input"};
