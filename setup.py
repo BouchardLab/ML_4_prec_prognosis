@@ -23,7 +23,9 @@ setup(
              'bin/run_uoinmf.py',
              'bin/plot_cca_results.py',
              'bin/run_cca.py',
-             'bin/plot_uoinmf_results.py'],
+             'bin/plot_uoinmf_results.py',
+             'bin/plot_summary.py',
+             'scripts/latent_feature_analysis.sh'],
 
 
     # Versions should comply with PEP440.  For a discussion on single-sourcing
