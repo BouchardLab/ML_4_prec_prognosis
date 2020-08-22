@@ -1,7 +1,8 @@
 #!/bin/bash
 
+SCRIPT_NAME=`basename $0`
 function print_help(){
-    echo "Usage: run_all.sh conda_env input output_dir"
+    echo "Usage: $SCRIPT_NAME conda_env input output_dir"
 }
 
 function log ()
