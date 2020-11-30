@@ -1,6 +1,6 @@
 from argparse import ArgumentTypeError, ArgumentParser
-import h5py as _h5py
-import numpy as _np
+import h5py as h5py
+import numpy as np
 import pandas as pd
 from warnings import warn
 from pkg_resources import resource_filename
@@ -33,7 +33,7 @@ class Decomp(object):
 
 class TrackTBIFile(object):
 
-    __strtype = _h5py.special_dtype(vlen=bytes)
+    __strtype = h5py.special_dtype(vlen=str)
 
     __bm = 'biomarkers'
     __oc = 'outcomes'
@@ -63,7 +63,7 @@ class TrackTBIFile(object):
             filename, subgroup = filename[:idx], filename[idx:]
 
         self.filename = filename
-        with _h5py.File(self.filename, 'r') as f:
+        with h5py.File(self.filename, 'r') as f:
             g = f
             if subgroup is not None:
                 g = f[subgroup]
@@ -77,14 +77,31 @@ class TrackTBIFile(object):
             self.nmf = self.__check_decomp(self.__nmf, g)
             self.cca = self.__check_decomp(self.__cca, g)
 
+        idx = np.where(self.biomarker_features == 'GCSMildModSevereRecode')[0][0]
+        gcs_simple = self.biomarkers[:, idx]
+        self.gcs_simple = np.zeros(len(gcs_simple), dtype='U8')
+        self.gcs_simple[gcs_simple == 0.0] = 'Mild'
+        self.gcs_simple[gcs_simple == 1.0] = 'Moderate'
+        self.gcs_simple[gcs_simple == 2.0] = 'Severe'
+
+
+    def biomarker_df(self):
+        return pd.DataFrame(data=self.biomarkers, columns=self.biomarker_features, index=self.patient_ids)
+
+    def outcome_df(self):
+        return pd.DataFrame(data=self.outcomes, columns=self.outcome_features, index=self.patient_ids)
+
+    def datadict_df(self):
+        return pd.concat([self.biomarker_type, self.outcome_type])
+
     def __check_decomp(self, decomp, grp):
         ret = None
         if decomp in grp:
             grp = grp[decomp]
-            bm = g[self.__bm]
-            oc = g[self.__oc]
-            bm_bases = g[self.bases(self.__bm)]
-            oc_bases = g[self.bases(self.__oc)]
+            bm = grp[self.__bm][:]
+            oc = grp[self.__oc][:]
+            bm_bases = grp[self.bases(self.__bm)][:]
+            oc_bases = grp[self.bases(self.__oc)][:]
             ret = Decomp(bm, oc, bm_bases, oc_bases)
         return ret
 
@@ -102,21 +119,24 @@ class TrackTBIFile(object):
             return self.__decode(grp[features])
 
     def __decode(self, dset):
-        if _h5py.check_dtype(vlen=dset.dtype) == bytes:
-            return _np.array([s.decode('utf-8') for s in dset])
+        if h5py.check_dtype(vlen=dset.dtype) == bytes:
+            return np.array([s.decode('utf-8') for s in dset])
         else:
             return dset[:]
 
     @classmethod
-    def __write_ascii(cls, grp, name, it):
-        b = [bytes(x, 'utf-8') for x in it]
-        ret = grp.create_dataset(name, data=b, dtype=cls.__strtype)
-        return ret
+    def __write_str(cls, grp, name, it, overwrite=False):
+        #b = [bytes(x, 'utf-8') for x in it]
+        if name in grp and overwrite:
+            del grp[name]
+        dset = grp.create_dataset(name, shape=(len(it),), dtype=cls.__strtype)
+        dset[:] = it
+        return dset
 
     @staticmethod
     def check_grp(h5group, mode):
         if isinstance(h5group, str):
-            f = _h5py.File(h5group, mode)
+            f = h5py.File(h5group, mode)
             return f, True
         return h5group, False
 
@@ -127,38 +147,49 @@ class TrackTBIFile(object):
         dset.dims[dim].attach_scale(scale)
 
     @classmethod
-    def write_nmf(cls, h5group, bm, oc, bm_bases, oc_bases):
-        cls.__write_decomp(h5group, cls.__nmf, bm, oc, bm_bases, oc_bases)
+    def write_nmf(cls, h5group, bm, oc, bm_bases, oc_bases, **kwargs):
+        cls.__write_decomp(h5group, cls.__nmf, bm, oc, bm_bases, oc_bases, **kwargs)
 
     @classmethod
-    def write_cca(cls, h5group, bm, oc, bm_bases, oc_bases):
-        cls.__write_decomp(h5group, cls.__cca, bm, oc, bm_bases, oc_bases)
+    def write_cca(cls, h5group, bm, oc, bm_bases, oc_bases, **kwargs):
+        cls.__write_decomp(h5group, cls.__cca, bm, oc, bm_bases, oc_bases, **kwargs)
 
     @classmethod
-    def __write_decomp(cls, h5group, name, bm, oc, bm_bases, oc_bases):
+    def __write_decomp(cls, h5group, name, bm, oc, bm_bases, oc_bases, metadata=None, overwrite=False):
         h5group, close = cls.check_grp(h5group, 'a')
-        grp = h5group.create_group(name)
-        grp.create_dataset(cls.__bm, data=bm)
-        grp.create_dataset(cls.__oc, data=oc)
-        grp.create_dataset(cls.bases(cls.__bm), data=bm_bases)
-        grp.create_dataset(cls.bases(cls.__oc), data=oc_bases)
+        grp = h5group.require_group(name)
+        pairs = [
+            (cls.__bm, bm),
+            (cls.__oc, oc),
+            (cls.bases(cls.__bm), bm_bases),
+            (cls.bases(cls.__oc), oc_bases),
+        ]
+        for name, data in pairs:
+            if overwrite:
+                if name in grp:
+                    del grp[name]
+            grp.create_dataset(name, data=data)
+
+        if metadata is not None:
+            for k, v in metadata.items():
+                grp.attrs[k] = v
         if close:
             h5group.close()
 
     @classmethod
-    def write_feat_types(cls, h5group, biomarkers, outcomes):
+    def write_feat_types(cls, h5group, biomarkers, outcomes, **kwargs):
         # write biomarker feature names
         h5group, close = cls.check_grp(h5group, 'a')
         bmt_grp = h5group.require_group(cls.__bm_feat_type)
         biomarker_type = cls.check_type(biomarkers)
         for k, v in biomarker_type.items():
-            scale = cls.__write_ascii(bmt_grp, k, v)
+            scale = cls.__write_str(bmt_grp, k, v, **kwargs)
 
         # write outcome feature names
         oct_grp = h5group.require_group(cls.__oc_feat_type)
         outcome_type = cls.check_type(outcomes)
         for k, v in outcome_type.items():
-            scale = cls.__write_ascii(oct_grp, k, v)
+            scale = cls.__write_str(oct_grp, k, v, **kwargs)
         if close:
             h5group.close()
 
@@ -195,13 +226,13 @@ class TrackTBIFile(object):
         if biomarker_features is not None:
             if len(biomarker_features) != biomarkers.shape[1]:
                 warn('biomarker_features length does not match biomarkers second dimension')
-            scale = cls.__write_ascii(h5group, cls.__bm_feat, biomarker_features)
+            scale = cls.__write_str(h5group, cls.__bm_feat, biomarker_features)
 
         # write outcome feature names
         if outcome_features is not None:
             if len(outcome_features) != outcomes.shape[1]:
                 warn('outcome_features length does not match outcomes second dimension')
-            scale = cls.__write_ascii(h5group, cls.__oc_feat, outcome_features)
+            scale = cls.__write_str(h5group, cls.__oc_feat, outcome_features)
 
         # write patient IDs
         if patient_ids is not None:
@@ -210,7 +241,7 @@ class TrackTBIFile(object):
                 warn('patient_ids length does not match outcomes first dimension')
             if len(patient_ids) != biomarkers.shape[0]:
                 warn('patient_ids length does not match biomarkers first dimension')
-            scale = cls.__write_ascii(h5group, cls.__pid, patient_ids)
+            scale = cls.__write_str(h5group, cls.__pid, patient_ids)
 
         if close_grp:
             h5group.close()
@@ -222,7 +253,7 @@ class UoINMFTrackTBIFile(TrackTBIFile):
 
     def __init__(self, filename):
         super(UoINMFTrackTBIFile, self).__init__(filename)
-        with _h5py.File(self.filename, 'r') as f:
+        with h5py.File(self.filename, 'r') as f:
             self.biomarker_bases = f[self.__bm_bases][:]
             self.outcome_bases = f[self.__oc_bases][:]
 
@@ -248,7 +279,7 @@ class UoINMFTrackTBIFile(TrackTBIFile):
         h5group = dest
         close_grp = False
         if isinstance(dest, str):
-            h5group = _h5py.File(dest, 'w')
+            h5group = h5py.File(dest, 'w')
             close_grp = True
         super(UoINMFTrackTBIFile, cls).write(h5group, biomarkers, outcomes,
                                              biomarker_features=biomarker_features,
@@ -423,8 +454,17 @@ def load_outcome_mask(trim_col=False):
     return ret
 
 
+def _clean_label(label):
+    d, s = [s.strip() for s in label.split(' - ')]
+    if len(s) == 0:
+        return d
+    else:
+        return s
+
+
 def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
     if data_dict_path is not None:
+        # read from TRACK-TBI supplied data dict
         dd_df = pd.read_csv(data_dict_path, index_col=1)[['domain', 'sub-domain']].fillna(' ')
 
         # add any missing biomarker columns
@@ -450,7 +490,9 @@ def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
                 # print('Adding missing outcome', c)
                 s = dd_df.loc[_c]
                 s.name = c
+                dd_df = dd_df.append(s)
     else:
+        # make up feature classes
         dd_df = pd.DataFrame(data={'domain': list(), 'sub-domain': list()})
         for c in bm_df.columns:
             dd_df = dd_df.append(pd.Series(name=c, data={'domain': 'Biomarker', 'sub-domain': ''}))
@@ -460,44 +502,58 @@ def get_feature_types(data_dict_path, bm_df, oc_df, ct_df=None, cntm_df=None):
     if ct_df is not None:
         # add CT columns
         for c in ct_df.columns:
-            dd_df = dd_df.append(pd.Series(name=c, data={'domain': 'Registered CT measure', 'sub-domain': 'MNI'}))
+            dd_df = dd_df.append(pd.Series(name=c, data={'domain': 'Registered CT', 'sub-domain': 'MNI'}))
     if cntm_df is not None:
         # add CT columns
         for c in cntm_df.columns:
             dd_df = dd_df.append(pd.Series(name=c, data={'domain': 'Connectome', 'sub-domain': ''}))
 
+    # add CT or connectome data if its been provided
     pred_colnames = list(bm_df.columns)
     if ct_df is not None:
         pred_colnames.extend(ct_df.columns)
     if cntm_df is not None:
         pred_colnames.extend(cntm_df.columns)
 
-    return dd_df.filter(pred_colnames, axis=0), dd_df.filter(oc_df.columns, axis=0)
+    # cleaned up data-dictionary values -- some features do not have a sub-domain
+    cleaned_dd = [_clean_label(l) for l in (dd_df['domain'] + ' - ' + dd_df['sub-domain']).values]
+    dd_df = pd.DataFrame(data=cleaned_dd, index=dd_df.index)
+
+    # filter to order things appropriately
+    bm_df, oc_df = dd_df.filter(pred_colnames, axis=0), dd_df.filter(oc_df.columns, axis=0)
+    return bm_df, oc_df
 
 
 def merge_data(scalar_data_path, output_path, ct_df=None, cntm_df=None, data_dict_path=None):
     """
     Args:
-        scalar_data_path:     path to scalar data
+        scalar_data_path:     path to TRACK-TBI scalar data
         output_path:          path to save final data to
         ct_df:                CT data frame
         cntm_df:              connectome data frame
+        data_dict_path:       the path to the data dictionary CSV from TRACK-TBI
     """
     tbi = TrackTBIFile(scalar_data_path)
 
-    pred_dfs = [pd.DataFrame(data=tbi.biomarkers, index=tbi.patient_ids, columns=tbi.biomarker_features)]
+    # read data into data frames for ease of merging
+    bm_df = pd.DataFrame(data=tbi.biomarkers, index=tbi.patient_ids, columns=tbi.biomarker_features)
+    pred_dfs = [bm_df]
     if ct_df is not None:
         pred_dfs.append(ct_df)
     if cntm_df is not None:
         pred_dfs.append(cntm_df)
 
-    bm_df = pd.concat(pred_dfs, axis=1, join='inner') if len(pred_dfs) > 1 else pred_dfs[0]
-    oc_df = pd.DataFrame(data=tbi.outcomes, index=tbi.patient_ids, columns=tbi.outcome_features).filter(bm_df.index, axis=0)
-    TrackTBIFile.write(output_path,
-                    bm_df.values, oc_df.values,
-                    biomarker_features=bm_df.columns,
-                    outcome_features=oc_df.columns,
-                    patient_ids=bm_df.index)
+    # merge data
+    pred_df = pd.concat(pred_dfs, axis=1, join='inner') if len(pred_dfs) > 1 else pred_dfs[0]
+    oc_df = pd.DataFrame(data=tbi.outcomes, index=tbi.patient_ids, columns=tbi.outcome_features).filter(pred_df.index, axis=0)
 
+    # write merged data
+    TrackTBIFile.write(output_path,
+                    pred_df.values, oc_df.values,
+                    biomarker_features=pred_df.columns,
+                    outcome_features=oc_df.columns,
+                    patient_ids=pred_df.index)
+
+    # write feature types
     bm_ft, oc_ft = get_feature_types(data_dict_path, bm_df, oc_df, ct_df=ct_df, cntm_df=cntm_df)
-    TrackTBIFile.write_feat_types(output_path, bm_ft, oc_ft)
+    TrackTBIFile.write_feat_types(output_path, bm_ft.values.squeeze(), oc_ft.values.squeeze())

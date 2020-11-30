@@ -76,7 +76,7 @@ def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitlin
     ax.scatter(_x, _y, **scatter_kwargs)
 
     if patches is not None:
-        ax.legend(handles=patches, title=legend_title, loc=2)
+        ax.legend(handles=patches, title=legend_title, loc=2, fontsize=fontsize-4)
 
     if title is not None:
         ax.set_title(title, fontsize=fontsize)

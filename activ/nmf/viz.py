@@ -51,7 +51,7 @@ def get_sig_variables(nmf_bases, frac=0.250):
 def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
             highlight=False, highlight_weight=0.7, cumsum_thresh=0.99,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
-            title=None, **kwargs):
+            title=None, return_groups=False, **kwargs):
     """
     Create a heatmap from outcome factors.
 
@@ -140,13 +140,10 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
         ax.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
 
     if row_labels is not False:
-        ax.set_yticks(np.arange(plot_data.shape[0]))
         row_labels = np.asarray(row_labels)[row_order]
         ax.set_yticklabels(row_labels)
     else:
-        ax.set_yticks(np.arange(plot_data.shape[0]))
         ax.set_yticklabels(row_order)
-        #ax.tick_params(axis='y', which='both', bottom=False, top=False, labelbottom=False)
 
     ax.set_xlabel(None)
     if xlab is not None:
@@ -156,6 +153,7 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
     if title is not None:
         ax.set_title(title, fontsize=48)
 
+    label_groups = None
     if highlight is not None and highlight != False:
 
         if isinstance(highlight, bool):
@@ -174,6 +172,7 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
                 bnd.append(new_mx)
             else:
                 bnd.append(mx)
+        label_groups = np.array(bnd+[plot_data.shape[1]])
         bnd = [b - 0.5 for b in bnd]
         bounds = list(zip([-0.5]+bnd, bnd+[plot_data.shape[1]]))
         y = -0.5
@@ -185,8 +184,16 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
             ax.add_patch(mpatches.Rectangle((x, y), width, height, fill=True,
                          facecolor=color, lw=0, alpha=highlight_weight))
 
+    ret = [im, row_order, col_order]
+    if return_groups and label_groups is not None:
+        s = 0
+        tmp_lblgrp = list()
+        for e in label_groups:
+            tmp_lblgrp.append(col_labels[s:e])
+            s = e
+        ret.append(tmp_lblgrp)
     # Rotate the tick labels and set their alignment.
-    return im, row_order, col_order
+    return tuple(ret)
 
 
 def weights_clustermap(data, row_linkage=None, col_linkage=None, cmap='binary',

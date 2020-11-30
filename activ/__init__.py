@@ -1,4 +1,4 @@
-from .readfile import load_data
+from .readfile import load_data, TrackTBIFile
 from .ipytools import LoggerMagic
 
 # In order to actually use these magics, you must register them with a

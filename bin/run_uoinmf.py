@@ -1,95 +1,72 @@
-from PyUoI.UoINMF import UoINMF
-from activ import load_data
+from pyuoi.decomposition.NMF import UoI_NMF, UoI_NMF_Base
+from sklearn.cluster import KMeans
+from activ import TrackTBIFile
+from activ.utils import get_logger
 from activ.data_normalization import data_normalization
-from sklearn.cluster import DBSCAN
-from sklearn.decomposition import NMF
-from hdbscan import HDBSCAN
 from datetime import  datetime
+from sklearn.utils import check_random_state
+import numpy as np
 
 import h5py
 import sys
 import os
 import argparse
 from time import time
-import logging
 
-root = logging.getLogger()
-root.setLevel(logging.DEBUG)
-ch = logging.StreamHandler(sys.stderr)
-ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(message)s')
-ch.setFormatter(formatter)
-root.addHandler(ch)
+def run(X, args, k=None):
+    if not args.no_norm:
+        X = data_normalization(X, 'positive')
+    random_state = check_random_state(args.seed)
+    if k is not None:
+        nmf = UoI_NMF_Base(n_boots=args.n_boots, ranks=[k], cluster=KMeans(k))
+    else:
+        nmf = UoI_NMF(args.n_boots, ranks=range(6,9), nmf_init='random', db_min_samples=2)
+    nmf.fit(X)
+    W = nmf.transform(X)
+    H = nmf.components_
+    return W, H, str(nmf)
 
-def log(msg):
-    root.info(msg)
-
-def h5_path(string):
-    if ':' not in string:
-        raise argparse.ArgumentTypeError("please provide a path to an HDF5 file and the path to the datast in the file")
-    fpath, dset_path = string.split(":")
-    ret = None
-    with h5py.File(fpath, 'r') as f:
-        ret = f[dset_path][:]
-    return ret
+def get_nmf_feat_type(H):
+    idx = np.argmax(H, axis=0)
+    feat = ['nmf_%d' % (i+1) for i in idx]
+    return {'nmf': feat}
 
 
-parser = argparse.ArgumentParser(usage="%(prog)s [options] <hdf5_path>:<dataset_path> <output_hdf5_path>")
-parser.add_argument('input', type=h5_path, help='the HDF5 file and dataset to use')
-parser.add_argument('-b', '--bootstraps', type=int, help='the number of bootstraps to run', default=50)
-parser.add_argument('-m', '--min_cluster_size', type=int, help='the minimum number samples for a cluster', default=20)
+parser = argparse.ArgumentParser(usage="%(prog)s [options] input")
+parser.add_argument('input', type=str, help='the path to the TRACK-TBI input file')
+parser.add_argument('-b', '--n_boots', type=int, help='the number of bootstraps to run', default=20)
 parser.add_argument('-s', '--seed', type=int, help='the seed to use for random number generation', default=-1)
-parser.add_argument('-o', '--output', type=str, help='the HDF5 file to save results to', default='uoinmf.h5')
 parser.add_argument('-n', '--no_norm', action='store_true', help='do not normalize data to [0,1]', default=False)
-parser.add_argument('-f', '--force', action='store_true', help='force overwrite of output file', default=False)
+parser.add_argument('--no_outcomes', action='store_true', help='do not run UoI-NMF on outcome data', default=False)
+parser.add_argument('-O', '--outcomes_k', type=int, help='number of latent outcome dimensions', default=None)
+parser.add_argument('-B', '--biomarkers_k', type=int, help='number of latent biomarkers dimensions', default=None)
+
 
 args = parser.parse_args()
 
-if os.path.exists(args.output):
-    if not args.force:
-        sys.stderr.write("%s exists... cautiously exiting\n" % args.output)
-        sys.exit(2)
-    else:
-        os.remove(args.output)
+args.seed = args.seed if args.seed >= 0 else int(round(time() * 1000) % 2**32)
+logger = get_logger()
+logger.info('using seed %s' % args.seed)
 
-output = args.output
+logger.info('loading data')
+tbifile = TrackTBIFile(args.input)
 
-seed = args.seed if args.seed >= 0 else int(round(time() * 1000) % 2**32)
-log('using seed %s' % seed)
+logger.info('running UoI-NMF on biomarkers')
+bm_w, bm_h, bm_nmf = run(tbifile.biomarkers, args, args.biomarkers_k)
+n, q = tbifile.outcomes.shape
+if not args.no_outcomes:
+    logger.info('running UoI-NMF on outcomes')
+    oc_w, oc_h, oc_nmf = run(tbifile.outcomes, args, args.outcomes_k)
+else:
+    logger.info('skipping outcomes')
+    oc_w, oc_h, oc_nmf = np.zeros((n, 5)), np.zeros((5, q)), 'not run'
 
-start = datetime.now()
-#log('loading data')
-data = args.input
-log('normalizing data')
+metadata = {'biomarker_params': str(bm_nmf), 'outcome_params': str(oc_nmf)}
 
-if not args.no_norm:
-    data = data_normalization(data, 'positive')
+logger.info('computing NMF types')
+bm_ft = get_nmf_feat_type(bm_h)
+oc_ft = get_nmf_feat_type(oc_h)
 
-uoinmf = UoINMF(n_bootstraps_i=args.bootstraps, ranks=list(range(2,20)), random_state=seed,
-                    dbscan=HDBSCAN(min_cluster_size=args.min_cluster_size, core_dist_n_jobs=1))
-log('running UoINMF')
-log(repr(uoinmf))
-W = uoinmf.fit_transform(data)
-
-log('writing results to %s' % output)
-
-f = h5py.File(output, 'w')
-f.attrs['explanation'] = 'UoINMF decomposes nonnegative matrix A into the matrices W ("weights") and H ("bases") i.e. A = W*H'
-
-dset = f.create_dataset('weights', data=W)
-dset.attrs['explanation'] = 'The W component of the factorization'
-
-dset = f.create_dataset('bases', data=uoinmf.components_)
-dset.attrs['explanation'] = 'The H component of the factorization'
-
-dset = f.create_dataset('bases_samples', data=uoinmf.bases_samples_)
-dset.attrs['explanation'] = 'Samples for the rows of H. H is computed by building clusters from these samples'
-
-dset = f.create_dataset('normalized_input', data=data)
-dset.attrs['explanation'] = 'UoINMF (and all NMF algorithms) require the input matrix to be nonnegative. This requirement is ensured by normalizing all data to values between 0 and 1'
-f.close()
-
-end = datetime.now()
-log('done - found %d bases' % uoinmf.components_.shape[0])
-log('reconsruction error: %s' % uoinmf.reconstruction_err_)
-log('time elapsed: %s' % str(end-start))
+logger.info('writing results')
+TrackTBIFile.write_nmf(args.input, bm_w, oc_w, bm_h, oc_h, metadata=metadata, overwrite=True)
+TrackTBIFile.write_feat_types(args.input, bm_ft, oc_ft, overwrite=True)

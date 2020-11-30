@@ -41,3 +41,5 @@ def test_write():
     oc_l = np.random.random((q, cca_k))
 
     TrackTBIFile.write_cca(path, bm_cv, oc_cv, bm_l, oc_l)
+
+    tbfile = TrackTBIFile(path)
