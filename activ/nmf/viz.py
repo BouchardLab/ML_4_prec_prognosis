@@ -3,6 +3,7 @@ import itertools as it
 import numpy as np
 import pandas as pd
 import scipy.cluster.hierarchy as sch
+from sklearn.preprocessing import normalize
 
 import matplotlib.patches as mpatches
 
@@ -49,7 +50,7 @@ def get_sig_variables(nmf_bases, frac=0.250):
 
 
 def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
-            highlight=False, highlight_weight=0.7, cumsum_thresh=0.99,
+            highlight=False, highlight_weight=0.7, cumsum_thresh=0.99, show_cbar=True,
             cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
             title=None, return_groups=False, **kwargs):
     """
@@ -122,15 +123,16 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
     # Plot the heatmap
     im = ax.imshow(plot_data, **kwargs)
 
-    # create an axes on the right side of ax. The width of cax will be 5%
-    # of ax and the padding between cax and ax will be fixed at 0.05 inch.
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="2%", pad=0.1)
 
     # Create colorbar
-    cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw, cax=cax)
-    cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
+    if show_cbar:
+        # create an axes on the right side of ax. The width of cax will be 5%
+        # of ax and the padding between cax and ax will be fixed at 0.05 inch.
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="2%", pad=0.1)
+        cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw, cax=cax)
+        cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
 
     if col_labels is not False:
         ax.set_xticks(np.arange(plot_data.shape[1]))
@@ -186,6 +188,8 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
 
     ret = [im, row_order, col_order]
     if return_groups and label_groups is not None:
+        if col_labels is False or col_labels is None:
+            col_labels = [str(i) for i in range(data.shape[1])]
         s = 0
         tmp_lblgrp = list()
         for e in label_groups:
@@ -236,25 +240,45 @@ def weights_clustermap(data, row_linkage=None, col_linkage=None, cmap='binary',
     return cg, row_linkage, col_linkage
 
 
-def nmfplot(weights, bases, hm_kwargs=None, cm_kwargs=None, indiv_lev_frac=None, total_lev_frac=None):
-    sig_bases = None
-    if indiv_lev_frac is not None:
-        sig_bases = get_sig_indiv_lev(bases, frac=indiv_lev_frac)
-    if total_lev_frac is not None:
-        sig_bases = get_sig_total_lev(bases, frac=total_lev_frac)
-    if sig_bases is not None:
-        bases = bases[:,sig_bases]
+def plot_bases(bases, colors, feat_names=None, return_groups=True, ax=None):
+    ret = bases_heatmap(bases, aspect='auto',
+                        col_labels=feat_names,
+                        highlight_weight=0.50,
+                        highlight=colors,
+                        show_cbar=False,
+                        return_groups=return_groups,
+                        ax=ax)
+    if return_groups:
+        return ret[1], ret[3]
+    return ret[1]
 
-    kwargs = dict()
-    if cm_kwargs is not None:
-        kwargs.update(cm_kwargs)
-    cg, row_linkage, col_linkage = weights_clustermap(weights, **kwargs)
-    bases_order = sch.leaves_list(col_linkage)
+def plot_weights(weights, colors, row_order, ax=None):
+    ax = ax or plt.gca()
 
-    kwargs = dict(sort=bases_order)
-    if hm_kwargs is not None:
-        kwargs.update(hm_kwargs)
-    im, row_order, col_order = bases_heatmap(bases, **kwargs)
+    domfac = np.argmax(weights, axis=1)
 
-    return cg, im, row_linkage, col_linkage, row_order, col_order
+    stacked = np.zeros((weights.shape[1], weights.shape[1]))
+    bm_norm = normalize(weights, norm='l1')
+    for b in row_order:
+        subset = bm_norm[domfac == b]
+        if subset.shape[0] == 0:
+            continue
+        stacked[b] = np.sum(subset, axis=0)/subset.shape[0]
+    stacked = stacked[row_order][:, row_order]
+    x = np.array(row_order)
+    x = np.arange(weights.shape[1])
+    y_offset = 0.0
+    for i in range(stacked.shape[1]):
+        ax.bar(x, stacked[:, i], bottom=y_offset, color=colors[i])
+        y_offset += stacked[:, i]
+    ax.set_xticks(x)
+    ret = ax.set_xticklabels(row_order)
 
+
+def nmfplot(weights, bases, palette=None, features=None, axes=None):
+    if axes is None:
+        fig, axes = plt.subplots(2, 1)
+    palette = palette or sns.color_palette('Set2', bases.shape[0])
+    row_order = plot_bases(bases, palette, feat_names=features or False, ax=axes[0])
+    row_order, var_grps = row_order
+    plot_weights(weights, palette, row_order, ax=axes[1])
