@@ -17,6 +17,7 @@ setup(
              'bin/run_jackknife_umap_clustering.py',
              'bin/run_subsample_umap_clustering.py',
              'bin/summarize_sweep_results.py',
+             'bin/aggregate_sweep_results.py',
              'bin/summarize_umap_clustering.py',
              'bin/make_blob_data.py',
              'bin/merge_tracktbi.py',
