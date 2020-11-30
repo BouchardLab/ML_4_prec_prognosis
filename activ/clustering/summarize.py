@@ -34,6 +34,30 @@ def read_clustering_results(path):
     return cluster_sizes, foc, accuracy, chance
 
 
+def get_avg(ar, i):
+
+    p = float('nan')
+    for ii in reversed(range(i)):
+        if not np.isinf(ar[ii]):
+            p = ar[ii]
+            break
+    n = float('nan')
+    for ii in range(i+1, ar.shape[0]):
+        if not np.isinf(ar[ii]):
+            n = ar[ii]
+            break
+    ret = 0.0
+    if not np.isnan(p):
+        ret += p/2
+    if not np.isnan(n):
+        ret += n/2
+    if ret == 0.0:
+        raise ValueError('flanking values average to 0.0 -- '
+                         'this seems unlikely -- '
+                         'probably could not find finite values')
+    return ret
+
+
 def flatten(noc, foc, filter_inf=True, smooth=True):
     """
     Flatten fold-over-chance and number-of-clusters arrays into

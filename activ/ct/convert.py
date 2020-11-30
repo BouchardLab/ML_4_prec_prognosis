@@ -110,34 +110,38 @@ If no flag is used, the following files are expected:
     parser.add_argument('output', type=str, help='the path to write the final DataFrame to')
     parser.add_argument('--group6', action='store_true', default=False, help='data is grouped into three age ranges and split by sex')
     parser.add_argument('--sep_atlas', action='store_true', default=False, help='cortical and subcortical measures are separate')
+    parser.add_argument('--no_geometry', action='store_true', default=False, help='do not read geometric measuers')
 
     args = parser.parse_args(argv)
 
     files = list()
     if args.group6:
         if args.sep_atlas:
-            geom_cols = "Volume SurfArea Eccentricity Elongation Orientation".split(" ")
-            files.append((f"{args.input_dir}/*/outputLabelGeometryMeasures_21Label_AFF.txt", "AFF_S", geom_cols))
-            files.append((f"{args.input_dir}/*/outputLabelGeometryMeasures_48Label_AFF.txt", "AFF_C", geom_cols))
-            files.append((f"{args.input_dir}/*/outputLabelGeometryMeasures_21Label_PHY.txt", "PHY_S", geom_cols))
-            files.append((f"{args.input_dir}/*/outputLabelGeometryMeasures_48Label_PHY.txt", "PHY_C", geom_cols))
+            if not args.no_geometry:
+                geom_cols = "Volume SurfArea Eccentricity Elongation Orientation".split(" ")
+                files.append((f"{args.input_dir}/*/outputLabelGeometryMeasures_21Label_AFF.txt", "AFF_S", geom_cols))
+                files.append((f"{args.input_dir}/*/outputLabelGeometryMeasures_48Label_AFF.txt", "AFF_C", geom_cols))
+                files.append((f"{args.input_dir}/*/outputLabelGeometryMeasures_21Label_PHY.txt", "PHY_S", geom_cols))
+                files.append((f"{args.input_dir}/*/outputLabelGeometryMeasures_48Label_PHY.txt", "PHY_C", geom_cols))
 
             img_cols = "Mean Sigma Skewness Kurtosis Entropy Sum Q05 Q95 Min Max".split(" ")
             files.append((f"{args.input_dir}/*/outputImageIntensityStat_21Atlas.txt", "IMG_S", img_cols))
             files.append((f"{args.input_dir}/*/outputImageIntensityStat_48Atlas.txt", "IMG_C", img_cols))
         else:
-            geom_cols = "Volume SurfArea Eccentricity Elongation Orientation".split(" ")
-            files.append((f"{args.input_dir}/*/outputlabelGeometryMeasures_115Label_AFF.txt", "AFF", geom_cols))
-            files.append((f"{args.input_dir}/*/outputlabelGeometryMeasures_115Label_PHY.txt", "PHY", geom_cols))
+            if not args.no_geometry:
+                geom_cols = "Volume SurfArea Eccentricity Elongation Orientation".split(" ")
+                files.append((f"{args.input_dir}/*/outputlabelGeometryMeasures_115Label_AFF.txt", "AFF", geom_cols))
+                files.append((f"{args.input_dir}/*/outputlabelGeometryMeasures_115Label_PHY.txt", "PHY", geom_cols))
 
             img_cols = "Mean Sigma Skewness Kurtosis Entropy Sum Q05 Q95 Min Max".split(" ")
             files.append((f"{args.input_dir}/*/outputimageIntensityStat_115Atlas.txt", "IMG", img_cols))
     else:
         img_cols = "Mean Sigma Skewness Kurtosis Entropy Sum Q05 Q95 Min Max".split(" ")
-        files.append((f"{args.input_dir}/*/outputimageIntensityStatWarp_115Label_MNI*.txt", "MNI", img_cols))
+        files.append((f"{args.input_dir}/*/outputimageIntensityStatWarp_*Label_MNI*.txt", "MNI", img_cols))
 
-        geom_cols = "Volume SurfArea Eccentricity Elongation Orientation".split(" ")
-        files.append((f"{args.input_dir}/*/outputlabelGeometryMeasures_115Label*.txt", "GEO", geom_cols))
+        if not args.no_geometry:
+            geom_cols = "Volume SurfArea Eccentricity Elongation Orientation".split(" ")
+            files.append((f"{args.input_dir}/*/outputlabelGeometryMeasures_*Label*.txt", "GEO", geom_cols))
 
     df = read_all(*files)
     df.to_csv(args.output)
