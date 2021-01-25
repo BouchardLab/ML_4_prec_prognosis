@@ -5,8 +5,16 @@ import pandas as pd
 import scipy.cluster.hierarchy as sch
 from sklearn.preprocessing import normalize
 
+import matplotlib.axes as mpl_axes
+import matplotlib.colors as mpc
+import matplotlib.cm as cm
+import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+
+from . import bases_factor_order
 from ..viz import get_labels
 
 def get_comb(order):
@@ -51,8 +59,8 @@ def get_sig_variables(nmf_bases, frac=0.250):
 
 def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
             highlight=False, highlight_weight=0.7, cumsum_thresh=0.99, show_cbar=True,
-            cbar_kw={}, cbarlabel="", xlab=None, ylab=None,
-            title=None, return_groups=False, **kwargs):
+            cbar_kw={}, cbarlabel="", xlabel=None, ylabel=None, fontsize=None,
+            title=None, return_groups=False, factor_order=None, **kwargs):
     """
     Create a heatmap from outcome factors.
 
@@ -95,24 +103,20 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
 
     plot_data = np.array(data)
 
+    if factor_order is None:
+        factor_order = bases_factor_order(plot_data)
 
-    row_order = None
-    col_order = None
-    if sort is not False:
-        if sort is not True:
-            factor_order = np.asarray(sort)
-        else:
-            factor_order = np.argsort(np.max(plot_data, axis=1))[::-1]
-        plot_data = plot_data[factor_order]
-        to_sort = list()
-        for i, c in enumerate(plot_data.T):
-            mi = np.argmax(c)
-            to_sort.append((mi, -1*c[mi], i))
-        to_sort = sorted(to_sort)
-        new_order = np.array([t[2] for t in to_sort])
-        plot_data = plot_data[:,new_order]
-        row_order = factor_order
-        col_order = new_order
+    plot_data = plot_data[factor_order]
+    to_sort = list()
+    for i, c in enumerate(plot_data.T):
+        mi = np.argmax(c)
+        to_sort.append((mi, -1*c[mi], i))
+    to_sort = sorted(to_sort)
+    feat_order = np.array([t[2] for t in to_sort])
+    plot_data = plot_data[:,feat_order]
+
+    row_order = factor_order
+    col_order = feat_order
 
     for i in range(plot_data.shape[0]):
         order = np.argsort(plot_data[i])[::-1]
@@ -128,11 +132,10 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
     if show_cbar:
         # create an axes on the right side of ax. The width of cax will be 5%
         # of ax and the padding between cax and ax will be fixed at 0.05 inch.
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="2%", pad=0.1)
         cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw, cax=cax)
-        cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
+        cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom", fontsize=fontsize)
 
     if col_labels is not False:
         ax.set_xticks(np.arange(plot_data.shape[1]))
@@ -143,23 +146,25 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
 
     if row_labels is not False:
         row_labels = np.asarray(row_labels)[row_order]
-        ax.set_yticklabels(row_labels)
+        row_labels = [""] + row_labels.tolist()
+        ax.set_yticklabels(row_labels, fontsize=fontsize)
     else:
-        ax.set_yticklabels(row_order)
+        ax.set_yticklabels(row_order, fontsize=fontsize)
 
     ax.set_xlabel(None)
-    if xlab is not None:
-        ax.set_xlabel(xlab,fontsize=36)
-    if ylab is not None:
-        ax.set_ylabel(ylab, fontsize=36)
+    if xlabel is not None:
+        ax.set_xlabel(xlabel,fontsize=fontsize)
+    if ylabel is not None:
+        ax.set_ylabel(ylabel, fontsize=fontsize)
     if title is not None:
-        ax.set_title(title, fontsize=48)
+        ax.set_title(title, fontsize=fontsize)
 
     label_groups = None
     if highlight is not None and highlight != False:
 
         if isinstance(highlight, bool):
             highlight = sns.color_palette('Set2', plot_data.shape[0])
+        highlight = [highlight[i] for i in factor_order]
         maxes = np.argmax(plot_data, axis=1)
         bnd = list()
         for b_i in range(len(maxes)-1):
@@ -200,6 +205,254 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
     return tuple(ret)
 
 
+def get_percent_top(features, bases, perc=0.80, return_perc=False):
+    """
+    For each basis, return top *perc* features according to contribution
+    to the basis
+
+    Args:
+        return_perc (bool)        : return percents along with features
+
+    Returns:
+        a list of lists or a tuple of lists of lists if *return_perc* is *True*
+
+    """
+    ret = list()
+    percents = list()
+    for b in range(bases.shape[0]):
+        basis = bases[b]
+        order = np.argsort(basis)[::-1]
+        idx = np.where(np.cumsum(basis[order]/basis.sum()) >= perc)[0][0] + 1
+        ret.append(features[order][:idx])
+        if return_perc:
+            percents.append(basis[order][:idx]/basis.sum())
+    if return_perc:
+        return tuple(ret), tuple(percents)
+    return tuple(ret)
+
+
+def plot_bases(bases, colors, feat_names=None, return_groups=True, ax=None,
+               bases_labels=None, factor_order=None, fontsize=None, xlabel=None):
+    """
+    A wrapper for *bases_heatmap*
+    """
+    ret = bases_heatmap(bases, aspect='auto',
+                        col_labels=feat_names,
+                        highlight_weight=0.50,
+                        highlight=colors,
+                        show_cbar=True,
+                        # cbarlabel='Feature contribution',
+                        return_groups=return_groups,
+                        row_labels=bases_labels,
+                        xlabel=xlabel,
+                        factor_order=factor_order,
+                        fontsize=fontsize,
+                        ax=ax)
+    if return_groups:
+        return ret[1], ret[3]
+    return ret[1]
+
+
+def plot_weights(weights, colors=None, factor_order=None, ax=None, labels=None, fontsize=None, labelsize=None):
+    """
+    Plot weights as a barplot.
+
+    For each weight, take the average of all patients with that weight as their maximum weight, and order
+    weights according to the max weight
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    if colors is None:
+        colors = sns.color_palette('Set2', weights.shape[1])
+
+    labelsize = labelsize or fontsize
+
+    domfac = np.argmax(weights, axis=1)
+    stacked = np.zeros((weights.shape[1], weights.shape[1]))
+    bm_norm = normalize(weights, norm='l1')
+    dist = np.zeros(weights.shape[1], dtype=int)
+    for b in range(weights.shape[1]):
+        mask = domfac == b
+        dist[b] = mask.sum()
+        subset = bm_norm[mask]
+        if subset.shape[0] == 0:
+            continue
+        stacked[b] = np.mean(subset, axis=0)
+    #############
+
+    if factor_order is None:
+        factor_order = np.argsort(np.max(stacked, axis=0))[::-1]
+
+    stacked = stacked[factor_order][:, factor_order]
+    x = np.arange(weights.shape[1])
+
+    if not isinstance(ax, mpl_axes.Axes):
+        if len(ax) > 1:
+            # ax[0].axis('off')
+            ax_bar = ax[0]
+            ax_bar.tick_params('x', labelbottom=False, bottom=False)
+            ax_bar.bar(x, dist[factor_order]/dist.sum(), color='Grey')
+            yticks = np.array([0.4, 0.8])
+            ax_bar.set_yticks(yticks)
+            ax_bar.set_yticklabels(yticks, fontsize=labelsize)
+            ax_bar.spines['right'].set_visible(False)
+            ax_bar.spines['top'].set_visible(False)
+            ax_bar.set_ylabel('Fraction of\npatients', fontsize=fontsize)
+            ax = ax[1]
+        else:
+            ax = ax[0]
+
+    y_offset = 0.0
+    colors = [colors[i] for i in factor_order]
+    for i in range(stacked.shape[1]):
+        ax.bar(x, stacked[:, i], bottom=y_offset, color=colors[i])
+        y_offset += stacked[:, i]
+    ax.set_xticks(x)
+    if labels is None:
+        labels = factor_order
+    else:
+        labels = [labels[i] for i in factor_order]
+    ax.set_xticklabels(labels, rotation=45, rotation_mode='anchor', horizontalalignment='right', fontsize=labelsize)
+    yticks = np.array([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    ax.set_yticks(yticks)
+    ax.set_yticklabels((yticks * 100).astype(int), fontsize=labelsize)
+    ax.set_ylim(0, 1.02)
+
+    ax.set_ylabel('Average Percent of Total Weight', fontsize=fontsize)
+    return factor_order
+
+
+def nmfplot(weights, bases, palette=None, features=None, axes=None, bases_labels=None,
+            bases_order=True, legend=False, fontsize=None, heatmap_xlabel=None, labelsize=None):
+    """
+    Generate a side-by-side figure of a bases heatmap and a weights barplot
+    """
+    if axes is None:
+        fig, axes = plt.subplots(1, 2)
+    palette = palette or sns.color_palette('Set2', bases.shape[0])
+    labelsize = labelsize or fontsize
+    if bases_order:
+        factor_order, var_grps = plot_bases(bases, palette, feat_names=features or False,
+                                            ax=axes[0], bases_labels=bases_labels, fontsize=labelsize)
+        axes[0].set_xlabel(heatmap_xlabel, fontsize=fontsize)
+        plot_weights(weights, palette, factor_order=factor_order, ax=axes[1:], labels=bases_labels, fontsize=fontsize, labelsize=labelsize)
+    else:
+        factor_order = plot_weights(weights, palette, ax=axes[1:], labels=bases_labels, fontsize=fontsize, labelsize=labelsize)
+        factor_order, var_grps = plot_bases(bases, palette, factor_order=factor_order, fontsize=labelsize,
+                                            feat_names=features or False, ax=axes[0], bases_labels=bases_labels)
+        axes[0].set_xlabel(heatmap_xlabel, fontsize=fontsize)
+    if bases_labels is not None and legend:
+        axes[1].legend([mpatches.Patch(color=c) for c in palette], bases_labels, bbox_to_anchor=(1.0, 1.0), loc='upper left')
+    return factor_order
+
+
+def plot_umap_nmf_piechart(weights, umap_emb, s=100, ax=None, fontsize=None, palette=None):
+    """
+    Plot 2-D UMAP embedding as pie-charts with distribution of weights
+    """
+    weights = np.cumsum(weights, axis=1)
+    weights = 2 * np.pi * weights/np.repeat(weights.max(axis=1), weights.shape[1]).reshape(weights.shape)
+
+    if palette is None:
+        palette = sns.color_palette('Set2', weights.shape[1])
+    ax = ax or plt.gca()
+    for p_i in range(weights.shape[0]):
+        start = 0
+        for w_i in range(weights.shape[1]):
+            end = weights[p_i, w_i]
+            lin = np.linspace(start, end, 10)
+            start = end
+            x = [0] + np.cos(lin).tolist()
+            y = [0] + np.sin(lin).tolist()
+            xy = np.column_stack([x, y])
+            ax.scatter([umap_emb[p_i, 0]], [umap_emb[p_i, 1]], marker=xy, s=100, color=palette[w_i])
+    ax.tick_params(labelsize=fontsize)
+    ax.set_xlabel('UMAP dimesion 1', fontsize=fontsize)
+    ax.set_ylabel('UMAP dimesion 2', fontsize=fontsize)
+
+
+def plot_umap_nmf_max(emb, weights, bases_labels, right=False, min_dist=0.0, legend=True, ax=None, palette=None):
+    """
+    Plot 2-D UMAP embedding, colored according to max NMF weight
+    """
+    ax = ax or plt.gca()
+
+    sf = np.argmax(weights, axis=1)
+    if palette is None:
+        palette = sns.color_palette('Set2', weights.shape[1])
+    colors = np.zeros((weights.shape[0], 3), dtype=float)
+    size = np.zeros(weights.shape[0], dtype=float)
+    total = np.sum(weights, axis=1)
+    for f in np.unique(sf):
+        mask = sf == f
+        colors[mask] = palette[f]
+        size[mask] =  weights[mask, f]/total[mask]
+    size /= size.max()
+    size *= 100
+
+    uniq, counts = np.unique(sf, return_counts=True)
+    uniq = uniq[np.argsort(counts)[::-1]]
+    handles = list()
+    labels = list()
+    for f in uniq:
+        mask = sf == f
+        ax.scatter(emb[mask, 0], emb[mask, 1], c=colors[mask], s=size[mask], label=bases_labels[f], edgecolors='w')
+        handles.append(mlines.Line2D([0], [0], marker='o', color='w', label=bases_labels[f],
+                                     markerfacecolor=colors[mask][0], markersize=10))
+        labels.append(bases_labels[f])
+
+    if legend:
+        if right:
+            plt.legend(handles, labels, loc='upper left', bbox_to_anchor=(1.0, 1.0))
+        else:
+            plt.legend(handles, labels, loc='upper right', bbox_to_anchor=(0, 1.0))
+
+
+def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmap='Reds'):
+    """
+    Plot 2-D UMAP embedding, one for each weight, coloring points according
+    to the value of the weight
+    """
+    for ax, vec, label in zip(axes, weights.T, bases_labels):
+        mappable = cm.ScalarMappable(cmap=plt.get_cmap(cmap),
+                                     norm=mpc.Normalize(vmin=np.min(vec), vmax=np.max(vec)))
+        colors = np.array([mappable.to_rgba(_) for _ in vec])
+        ax.scatter(emb[:, 0], emb[:, 1], c=colors)
+        cax = make_axes_locatable(ax).append_axes("right", size="7%", pad="2%")
+        plt.colorbar(mappable, cax=cax)
+        ax.tick_params('both', labelsize='large')
+        cax.tick_params('both', labelsize='large')
+        ax.set_title(label, fontsize='x-large')
+        ax.axis('scaled')
+    for ax in axes[weights.shape[1]:]:
+        ax.axis('off')
+
+
+def cumulative_plot(bases, labels, ax=None, colors=None, title=None, mark=None):
+    """
+    Make plot of cumulative contribution of variables to bases
+    """
+    ax = ax or plt.gca()
+    if colors is None:
+        colors = sns.color_palette("Set2", bases.shape[0])
+
+    cumsum = (np.cumsum(bases, axis=1).T / np.sum(bases, axis=1)).T
+    for i in range(cumsum.shape[0]):
+        ax.plot(cumsum[i], color=colors[i], label=labels[i])
+        if mark is not None:
+            if mark > 1:
+                mark = 1/100
+            feat = np.where(cumsum[i] > 0.8)[0][0]
+            ax.axvline(feat, color='r', ls=':', zorder=0)
+    fs = 'xx-large'
+    ax.legend(fontsize='x-large', loc='lower right')
+    ax.tick_params(labelsize=fs)
+    ax.set_xticks([])
+    ax.set_xlabel(title, fontsize=fs)
+    ax.set_ylabel('Cumulative leverage', fontsize=fs)
+
+
 def weights_clustermap(data, row_linkage=None, col_linkage=None, cmap='binary',
                        row_labels=None, legend_title="", **cm_kwargs):
     if row_linkage is None:
@@ -238,47 +491,3 @@ def weights_clustermap(data, row_linkage=None, col_linkage=None, cmap='binary',
         st = st + 0.15
 
     return cg, row_linkage, col_linkage
-
-
-def plot_bases(bases, colors, feat_names=None, return_groups=True, ax=None):
-    ret = bases_heatmap(bases, aspect='auto',
-                        col_labels=feat_names,
-                        highlight_weight=0.50,
-                        highlight=colors,
-                        show_cbar=False,
-                        return_groups=return_groups,
-                        ax=ax)
-    if return_groups:
-        return ret[1], ret[3]
-    return ret[1]
-
-def plot_weights(weights, colors, row_order, ax=None):
-    ax = ax or plt.gca()
-
-    domfac = np.argmax(weights, axis=1)
-
-    stacked = np.zeros((weights.shape[1], weights.shape[1]))
-    bm_norm = normalize(weights, norm='l1')
-    for b in row_order:
-        subset = bm_norm[domfac == b]
-        if subset.shape[0] == 0:
-            continue
-        stacked[b] = np.sum(subset, axis=0)/subset.shape[0]
-    stacked = stacked[row_order][:, row_order]
-    x = np.array(row_order)
-    x = np.arange(weights.shape[1])
-    y_offset = 0.0
-    for i in range(stacked.shape[1]):
-        ax.bar(x, stacked[:, i], bottom=y_offset, color=colors[i])
-        y_offset += stacked[:, i]
-    ax.set_xticks(x)
-    ret = ax.set_xticklabels(row_order)
-
-
-def nmfplot(weights, bases, palette=None, features=None, axes=None):
-    if axes is None:
-        fig, axes = plt.subplots(2, 1)
-    palette = palette or sns.color_palette('Set2', bases.shape[0])
-    row_order = plot_bases(bases, palette, feat_names=features or False, ax=axes[0])
-    row_order, var_grps = row_order
-    plot_weights(weights, palette, row_order, ax=axes[1])
