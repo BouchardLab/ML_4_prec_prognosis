@@ -1,7 +1,7 @@
 import h5py
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from matplotlib.cm import get_cmap
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
@@ -9,9 +9,10 @@ import matplotlib.colors as mpc
 
 import matplotlib.tri as tri
 import numpy as np
-import seaborn as sns
-from scipy.spatial.distance import pdist
 from scipy.cluster.hierarchy import cut_tree, dendrogram, linkage
+from scipy.spatial.distance import pdist
+from scipy.stats import entropy
+import seaborn as sns
 from sklearn.linear_model import LinearRegression
 
 
@@ -389,6 +390,7 @@ def make_clustered_plot(emb, n_clusters, ax=None, cmap='tab10'):
 
     cluster_results_plot(emb, colors, ax=ax)
 
+
 def get_real_noc(tested_noc, foc, smooth=True, use_median=False, spread_asm=True, spread_foc=True):
     ret = dict()
     kwargs= dict(noc=tested_noc,
@@ -502,6 +504,7 @@ def plot_real_foc_results(path, ax=None, max1d_cutoff=False, ci=None, n_sigma=1,
     ax.set_xlabel("# Outcome clusters", fontsize=fontsize)
     return est
 
+
 def plot_real_accuracy_chance_results(path, ax=None, fontsize='x-large'):
     ax = ax or plt.gca()
     real_noc, real_foc, real_accuracy, real_chance = read_clustering_results(path)
@@ -532,3 +535,75 @@ def plot_real_accuracy_chance_results(path, ax=None, fontsize='x-large'):
 
     ax.set_ylabel("Prediction Accuracy (% of chance)", fontsize=fontsize)
     ax.set_xlabel("# Outcome clusters", fontsize=fontsize)
+
+
+def entropy_across_clusterings(variable, labels):
+    """
+    Compute average entropy for a feature across different clusterings
+
+    Args:
+        variable (np.array)         : an array of shape (n_samples)
+        labels (np.array)           : an array of shape (n_samples, n_clusterings)
+    """
+    ret = list()
+    for clust_i in range(labels.shape[1]):
+        values = list()
+        weights = list()
+        tmp_labels = labels[:, clust_i]
+        for l in np.unique(tmp_labels):
+            mask = tmp_labels == l
+            subset = variable[mask]
+            uniq, counts = np.unique(subset, return_counts=True)
+            values.append(entropy(counts / counts.sum()))
+            weights.append(mask.sum())
+        ret.append(np.inner(values, weights)/len(labels))
+    return np.array(ret)
+
+
+def plot_entropy_across_clusters(features, emb, ax=None, cmap='Greys'):
+    """
+    Plot average feature entropy as a function of the number of clusters
+    for every feature in *features*
+
+    Args:
+        features (np.array)         : an array of shape (n_samples, n_features)
+        emb (np.array)              : an array of shape (n_samples, n_emb_features) to
+                                      use for clustering samples
+    """
+    ax = ax or plt.gca()
+    if isinstance(cmap, str):
+        cmap = cm.get_cmap(cmap)
+
+    dist = pdist(emb)
+    Z = linkage(dist, method='ward')
+    labels = cut_tree(Z, n_clusters=np.arange(2,51))
+
+    x = np.arange(2, 51)
+    init = list()
+    y = list()
+    for var_i in range(features.shape[1]):
+        y.append(entropy_across_clusterings(features[:, var_i], labels))
+        init.append(y[-1][0])
+    init = np.array(init)# / np.max(init)
+    y = np.array(y)
+
+    order = np.argsort(init)[::-1]
+    for var_i in order:
+        ax.plot(x, y[var_i]/init[var_i], c=cmap(init[var_i]))
+    ax.set_ylabel("Percent of initial entropy", fontsize='x-large')
+    ax.set_xlabel("Number of clusters", fontsize='x-large')
+
+    yticks = np.array([0.2, 0.4, 0.6, 0.8, 1.0])
+
+    ax.set_yticks(yticks)
+    ax.set_yticklabels((yticks*100).astype(int), fontsize='x-large')
+
+    xticks = np.arange(6)*10
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(xticks, fontsize='x-large')
+
+    cbar = ax.figure.colorbar(cm.ScalarMappable(norm=mpc.Normalize(vmin=np.min(init), vmax=np.max(init)), cmap=cmap), ax=ax)
+    cbar.set_label("Initial entropy", rotation=-90, va="bottom", fontsize='x-large')
+    cbar_yticks = [1, 2, 3, 4]
+
+    cbar.ax.set_yticklabels(cbar_yticks, fontsize='x-large')
