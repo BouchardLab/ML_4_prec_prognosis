@@ -10,8 +10,10 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.cluster.hierarchy import linkage, cut_tree
 
 import numpy as np
+import matplotlib.pyplot as plt
 import scipy.stats as sps
 import scipy.optimize as spo
+import scipy.signal as signal
 from sklearn.utils import check_random_state
 
 from sklearn.ensemble import RandomForestClassifier as RFC
@@ -23,6 +25,7 @@ from ..sampler import JackknifeSampler, BootstrapSampler, SubSampler
 from .summarize import  filter_iqr, summarize_flattened, flatten
 
 from ..readfile import TrackTBIFile
+
 
 def path_tuple(type_name, **kwargs):
     from collections import namedtuple
@@ -692,9 +695,7 @@ def umap_cluster_sweep(n_iters, cluster_data, cluster_sizes, umap_dims=None, met
 
 
 def plot_line(x, med, lower=None, upper=None, ax=None, color='red', label=None, xlabel=None, ylabel=None, title=None):
-    if ax is None:
-        import matplotlib.pyplot as plt
-        ax = plt.gca()
+    ax = ax or plt.gca()
     eb_kwargs = dict(x=x, y=med, color=color, fmt='-o', label=label)
     if lower is not None and upper is not None:
         eb_kwargs['yerr'] = [med-lower,upper-med]
@@ -774,8 +775,8 @@ def ci_overlap_min(noc_filt, foc_filt, mean, std, n_sigma=np.abs(sps.norm.ppf(0.
 
     return min_noc
 
-def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, iqr=True,
-            ttest_cutoff=True, ax=None, f_kwargs=None, a_kwargs=None,
+def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot_fit=False, plot_asm=False, iqr=True,
+            ttest_cutoff=True, ax=None, plot_raw=False, f_kwargs=None, a_kwargs=None,
             n_sigma=None, ci=0.95, use_median=False, spread_asm=False, spread_foc=True):
     # clean up and summarize data
     if iqr:
@@ -789,12 +790,13 @@ def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, iqr=True
         _, lower, med, upper = summarize_flattened(noc_filt, foc_filt, iqr=False)
         x_fit, y_fit = _, med
 
+
     try:
         popt, pcov = spo.curve_fit(linefit_func, x_fit, y_fit, p0=np.array([-1, -1, 0]))
         lim = popt[0]
         lim_sd = np.sqrt(pcov[0,0])
     except RuntimeError as e:
-        print(e)
+        print('RuntimeError --', e)
         return 0
 
     if n_sigma is None:
@@ -805,14 +807,8 @@ def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, iqr=True
     else:
         min_noc = ci_overlap_min(noc_filt, foc_filt, lim, lim_sd, n_sigma=n_sigma, spread_asm=spread_asm, spread_foc=spread_foc, use_median=use_median)
 
-
-    if plot:
-        if med is None:
-            _, lower, med, upper = summarize_flattened(noc_filt, foc_filt, iqr=False)
-
-        plot_line(noc, med, lower, upper)
-        if ax is None:
-            ax = plt.gca()
+    ax = ax or plt.gca()
+    if plot_fit:
         x_plot = np.linspace(np.min(noc_filt), np.max(noc_filt), 1000)
         y_plot = linefit_func(x_plot, *popt)
 
@@ -825,11 +821,25 @@ def get_noc(noc, foc, pvalue_cutoff=0.05, fit_summary=True, plot=False, iqr=True
         if isinstance(a_kwargs, dict):
             _kwargs.update(a_kwargs)
 
+    if plot_asm:
         ax.plot(x_plot, np.repeat(lim, 1000), **_kwargs)
         ax.fill_between(x_plot, np.repeat(lim-n_sigma*lim_sd, 1000), np.repeat(lim+n_sigma*lim_sd, 1000),
                         color='lightgray', label="limit 95%% CI: %.3f" % lim_sd)
 
     return min_noc
+
+
+def get_noc_max1d_smooth(noc, foc):
+    w = 11
+    kernel = signal.cosine(w)
+    c = w // 2
+    noc_flat, foc_flat = flatten(noc, foc, filter_inf=True)
+    x, lower, med, upper = summarize_flattened(noc_flat, foc_flat, iqr=True)
+    conv = np.convolve(med, kernel)
+    dxdy = conv[1:] - conv[:-1]
+    dxdy = dxdy[c-2:c+x.shape[0]-2]
+    return x[np.argmax(dxdy)+1]
+
 
 def main(args):
     from activ import load_data

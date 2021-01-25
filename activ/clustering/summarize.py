@@ -81,7 +81,7 @@ def flatten(noc, foc, filter_inf=True, smooth=True):
         c = w // 2
         kernel = signal.hann(w)
         kernel /= kernel.sum()
-        new_foc = foc[:]
+        new_foc = np.copy(foc)
         for i in range(foc.shape[1]):
             sub = foc[:, i]
             inf_vals = np.where(np.isinf(sub))[0]
