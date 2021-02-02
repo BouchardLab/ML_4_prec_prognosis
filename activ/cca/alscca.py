@@ -111,16 +111,16 @@ class TALSCCA(BaseEstimator):
                        rx=self.alpha_x, ry=self.alpha_y, return_cov=True,
                        random_state=self.random_state)
         H, S, self.n_iters_ = ret[0], ret[1], ret[2]
-        self.X_components_, self.Y_components_ = H.T, S.T
+        self.x_weights_, self.y_weights_ = H, S
         self.X_cov_ = ret[3]
         self.Y_cov_ = ret[4]
         self.XY_cov_ = ret[5]
         return self
 
     def transform(self, X, Y):
-        if getattr(self, 'X_components_', None) is None:
+        if getattr(self, 'X_weights_', None) is None:
             raise ValueError("TALSCCA is not fit")
-        return X.dot(self.X_components_.T), Y.dot(self.Y_components_.T)
+        return X.dot(self.x_weights_), Y.dot(self.y_weights_)
 
     def fit_transform(self, X, Y):
         return self.fit(X,Y).transform(X,Y)
@@ -178,3 +178,139 @@ class ALSCCA(BaseEstimator):
         z = X @ self.beta
         s = Y @ self.theta
         return z, s
+
+
+from scipy.spatial.distance import pdist, squareform
+from scipy.cluster.hierarchy import linkage, cut_tree
+from scipy.stats import pearsonr
+
+class UoI_sCCA_Base(BaseEstimator):
+
+
+    def __init__(self, n_components=2, metric='euclidean', cons_meth='median', n_boots=20,
+                       subsample_fraction=0.9, cm_kwargs=None, random_state=None, score_function='bic'):
+        if cons_meth == 'median':
+            self.cons_meth = np.median
+            self.cm_kwargs = {'axis': 1}
+        elif cons_meth == 'mean':
+            self.cons_meth = np.mean
+            self.cm_kwargs = {'axis': 1}
+        self.random_state = check_random_state(random_state)
+        self.n_components = n_components
+        self.metric = metric
+        self.n_boots = n_boots
+        self.subsample_fraction = subsample_fraction
+        self.est_cca = CCA(n_components=1, scale=False, )
+        if score_function == 'bic':
+            self.score_function = self.bic
+        elif score_function == 'pearsonr':
+            self.score_function = self.pearsonr
+        else:
+            msg = "Unrecognized score_function: '%s' -- please choose from 'bic' or 'pearsonr'" % score_function
+            raise ValueError(msg)
+
+    @classmethod
+    def ll(cls, x, y):
+        """
+        The log likelihood of two canonical variates
+        """
+        return np.log(sps.norm().pdf(x-y)).sum()
+
+    @classmethod
+    def pearsonr(cls, x, y, parameters):
+        return sps.pearsonr(x, y)[0]
+
+    @classmethod
+    def bic(cls, x, y, parameters):
+        k = np.sum(parameters != 0)
+        L = cls.ll(x, y)
+        n = len(x)
+        return k * np.log(n) - 2 * L
+
+    def fit(self, X, Y):
+        n = X.shape[0]
+        p = X.shape[1]
+        q = Y.shape[1]
+        k = self.n_components
+        n_params = len(self.params)
+
+        loading_samples = np.zeros(len(self.params), self.n_boots, k, (p + q))
+
+        idx = np.arange(n)
+        boot_samples = np.array([self.random_state.permutation(n) for i in range(self.n_boots)])
+        rep_idx = int(self.subsample_fraction * n)
+
+        #################
+        # BEGIN selection
+        #################
+        for param_j in range(n_params):
+            for boot_i in range(self.n_boots):
+                idx = boot_samples[boot_i, :rep_idx]
+                X_rep, Y_rep = X[idx], Y[idx]
+                self.sparse_cca.set_params(**self.params[param_j])
+                self.sparse_cca.fit(X_rep, Y_rep)
+                loading_samples[param_j, boot_i, :, :p] = self.sparse_cca.X_weights_
+                loading_samples[param_j, boot_i, :, p:] = self.sparse_cca.Y_weights_
+
+        loading_samples = loading_samples.reshape(len(self.params), self.n_boots*k, p + q)
+        models = np.zeros((n_params, k, p + q))
+        for param_j in range(n_params):
+            # Cluster occupancy vectors
+            samples = (loading_samples[param_j] != 0).astype(int)
+            labels = cut_tree(linkage(dist(samples, metric=self.metric), method='ward'), n_clusters=k)[:,0]
+            for label in np.unique(labels):   # labels <=> components
+                models[param_j, label, :] = self.cons_meth(samples[labels==label], **self.cm_kwargs) != 0
+        ###############
+        # END selection
+        ###############
+
+        ##################
+        # BEGIN estimation
+        ##################
+        scores = np.zeros(n_params)
+        for model_i in range(n_params):
+            for boot_i in range(self.n_boots):
+                train_idx = boot_samples[boot_i, :rep_idx]
+                test_idx = boot_samples[boot_i, rep_idx:]
+                X_weight = np.zeros(k, p)
+                Y_weight = np.zeros(k, q)
+                X_pred = np.zeros(k*n)
+                Y_pred = np.zeros(k*n)
+                s = 0
+                e = 0
+                for component_i in range(k):
+                    e += k
+                    model = models[model_i, component_i]
+                    X_mask, Y_mask = np.array_split(model, [p])
+                    X_train = X[train_idx, X_mask]
+                    Y_train = Y[train_idx, Y_mask]
+                    X_test = X[test_idx, X_mask]
+                    Y_test = Y[test_idx, Y_mask]
+                    self.est_cca.fit(X_train, Y_train)
+                    X_weight[component_i, X_mask] = self.est_cca.x_weights_
+                    Y_weight[component_i, Y_mask] = self.est_cca.y_weights_
+                    X_pred[s:e], Y_pred[s:e] = self.est_cca.transform(X_test, Y_test)
+                    s = e
+                estimates[boot_i, model_i, :k*p] = X_weight.flatten()
+                estimates[boot_i, model_i, k*p:] = Y_weight.flatten()
+                scores[boot_i, model_i] = self.score_function(X_pred, Y_pred, estimates[boot_i, model_i])
+
+        # calculate the best model for each bootstrap
+        model_max_idx = np.argmax(scores, axis=1)
+        best_estimates = estimates[np.arange(self.n_boots), model_max_idx, :]
+
+        # aggregate across bootstraps
+        weights = np.median(best_estimates, axis=0)
+
+        self.x_weights_ = weights[:k*p].reshape(k, p).T
+        self.y_weights_ = weights[k*p:].reshape(k, q).T
+        ################
+        # END estimation
+        ################
+
+        return self
+
+    def transform(self, X, Y):
+        if getattr(self, 'X_weights_', None) is None:
+            raise ValueError("TALSCCA is not fit")
+        return X.dot(self.x_weights_), Y.dot(self.y_weights_)
