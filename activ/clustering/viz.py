@@ -144,7 +144,7 @@ def shade_around(data, ax=None, stretch=None, alpha=0.2, color='blue', convex=Tr
         ax.axis('auto')
 
 
-def cluster_results_plot(emb, colors, ax=None, stretch=None, convex=True):
+def cluster_results_plot(emb, colors, ax=None, stretch=None, convex=True, **kwargs):
     """
     Plot 2-D UMAP embedding with colors
 
@@ -156,7 +156,7 @@ def cluster_results_plot(emb, colors, ax=None, stretch=None, convex=True):
     for color in np.unique(colors):
         mask = colors == color
         shade_around(emb[mask], ax=ax, color=color, stretch=stretch, convex=convex)
-    ax.scatter(emb[:,0], emb[:,1], c='k', edgecolors='w')
+    ax.scatter(emb[:,0], emb[:,1], c='k', edgecolors='w', **kwargs)
 
 
 def dendrogram_scatterplot(axes, Z, emb, labels, ticks=True, stretch=None, convex=True):
@@ -379,7 +379,7 @@ def plot_max1d_simdata_results(path, ax=None, flip=False, fontsize='x-large'):
     sim_sweep_plot(est_noc_max1d, true_noc, ax=ax, flip=flip, fontsize=fontsize)
 
 
-def make_clustered_plot(emb, n_clusters, ax=None, cmap='tab10', stretch=None):
+def make_clustered_plot(emb, n_clusters, ax=None, cmap='tab10', stretch=None, **kwargs):
     """
     Plot 2-D UMAP embedding. Cluster embedding and shade around the
     resulting clusters
@@ -399,7 +399,7 @@ def make_clustered_plot(emb, n_clusters, ax=None, cmap='tab10', stretch=None):
         mask = labels == cl_l
         colors[mask] = pal[cl_l]
 
-    cluster_results_plot(emb, colors, ax=ax, stretch=stretch)
+    cluster_results_plot(emb, colors, ax=ax, stretch=stretch, **kwargs)
 
 
 def get_real_noc(tested_noc, foc, smooth=True, use_median=False, spread_asm=True, spread_foc=True):
