@@ -15,6 +15,9 @@ from scipy.stats import entropy
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
 
+from concavity.core import concave_hull, plot_concave_hull
+import geopandas as gpd
+
 
 from .summarize import flatten, flatten_summarize, read_clustering_results, summarize_flattened, plot_line
 from .clustering import get_noc, get_noc_max1d_smooth
@@ -97,7 +100,7 @@ def get_link_color_func(Z, hex_labels):
     return lambda x: link_cols[x]
 
 
-def shade_around(data, ax=None, stretch=0.05, alpha=0.2, color='blue'):
+def shade_around(data, ax=None, stretch=None, alpha=0.2, color='blue', convex=True):
     """
     Draw a triangulated patch around a set of data points
 
@@ -105,38 +108,43 @@ def shade_around(data, ax=None, stretch=0.05, alpha=0.2, color='blue'):
         data (np.array)         : the points to draw around
         ax (plt.Axes)           : the Axes to draw on
         stretch (float)         : the amount to stetch the triangle vertices
-                                  from the center of the points
+                                  from the center of the points. stretch the convex
+                                  hull
+                                  used only when convex=True
         alpha (float)           : the transparency of the patch
+        convex (bool)           : require the patch to be the convex hull of points
         color (str or tuple)    : the color of the patch
-
     """
     ax = ax or plt.gca()
+    if convex:
+        x = data[:, 0]
+        y = data[:, 1]
+        if stretch:
+            if stretch is True:
+                stretch = 0.05
+            center = (x.mean(), y.mean())
+            x = (x - center[0])*(1+stretch) + center[0]
+            y = (y - center[1])*(1+stretch) + center[1]
+        z = np.ones_like(x)
 
-    x = data[:, 0]
-    y = data[:, 1]
-    center = (x.mean(), y.mean())
-    x = (x - center[0])*(1+stretch) + center[0]
-    y = (y - center[1])*(1+stretch) + center[1]
+        # xmin, xmax = x.min(), x.max()
+        # ymin, ymax = y.min(), y.max()
+        # xi = np.linspace(xmin, xmax, 2000)
+        # yi = np.linspace(ymin, ymax, 2000)
+        # triang = tri.Triangulation(x, y)
+        # interpolator = tri.LinearTriInterpolator(triang, z)
+        # Xi, Yi = np.meshgrid(xi, yi)
+        # zi = interpolator(Xi, Yi)
+        # cfset = ax.contourf(xi, yi, zi, colors=color, alpha=alpha)
 
-    z = np.ones_like(x)
-
-
-    xmin, xmax = x.min(), x.max()
-    ymin, ymax = y.min(), y.max()
-
-    xi = np.linspace(xmin, xmax, 2000)
-    yi = np.linspace(ymin, ymax, 2000)
-
-    triang = tri.Triangulation(x, y)
-    interpolator = tri.LinearTriInterpolator(triang, z)
-    Xi, Yi = np.meshgrid(xi, yi)
-    zi = interpolator(Xi, Yi)
-
-    #cfset = ax.contourf(xi, yi, zi, colors=color, alpha=alpha)
-    cfset = ax.tricontourf(x, y, z, colors=color, alpha=alpha)
+        cfset = ax.tricontourf(x, y, z, colors=color, alpha=alpha)
+    else:
+        ch = concave_hull(data, 16)
+        gpd.GeoSeries([ch]).plot(ax=ax, alpha=alpha, color=color, edgecolor='none')
+        ax.axis('auto')
 
 
-def cluster_results_plot(emb, colors, ax=None):
+def cluster_results_plot(emb, colors, ax=None, stretch=None, convex=True):
     """
     Plot 2-D UMAP embedding with colors
 
@@ -147,11 +155,11 @@ def cluster_results_plot(emb, colors, ax=None):
     ax = ax or plt.gca()
     for color in np.unique(colors):
         mask = colors == color
-        shade_around(emb[mask], ax=ax, color=color, stretch=0.12)
+        shade_around(emb[mask], ax=ax, color=color, stretch=stretch, convex=convex)
     ax.scatter(emb[:,0], emb[:,1], c='k', edgecolors='w')
 
 
-def dendrogram_scatterplot(axes, Z, emb, labels, ticks=True):
+def dendrogram_scatterplot(axes, Z, emb, labels, ticks=True, stretch=None, convex=True):
     """
     Plot 2-D UMAP embedding with a dendrogram juxtaposed
 
@@ -161,7 +169,7 @@ def dendrogram_scatterplot(axes, Z, emb, labels, ticks=True):
         labels (np.array)         : the labels from cutting the linkage matrix
     """
 
-    cluster_results_plot(emb, labels, ax=axes[0])
+    cluster_results_plot(emb, labels, ax=axes[0], stretch=stretch, convex=convex)
 
     ret = dendrogram(Z, color_threshold=None, show_leaf_counts=True,
                      no_labels=True, orientation='right', above_threshold_color='black',
@@ -179,7 +187,8 @@ def dendrogram_scatterplot(axes, Z, emb, labels, ticks=True):
     c = len(np.unique(labels))
     axes[1].axvline(x=(Z[-c+1,2] + Z[-c,2])/2, color='grey', lw=4, linestyle=':')
 
-def make_dendrogram_scatterplots(emb, nmf_path=None, cmap='Dark2', axes=None):
+def make_dendrogram_scatterplots(emb, nmf_path=None, cmap='Dark2', axes=None, stretch=None, method='ward',
+                                 convex=True):
     """
     Plot two 2-D UMAP embeddings with dendrogram on the side. The upper plot
     is cut at 3 clusters and the lower plot is at 4 clusters.
@@ -187,27 +196,29 @@ def make_dendrogram_scatterplots(emb, nmf_path=None, cmap='Dark2', axes=None):
     dist = pdist(emb)
     Z = linkage(dist, method='ward')
     labels = cut_tree(Z, n_clusters=[3, 4])
-    if isinstance(cmap, str):
-        pal = sns.color_palette(cmap, 10).as_hex()
-        pal = [pal[i] for i in (3,1,0,2)]
-    else:
-        pal = cmap
-    #pal = [pal[i] for i in ()]
+
+    pal = sns.color_palette('Dark2', 10).as_hex()
+    #pal = [pal[i] for i in (3,1,0,2)]
+
     colors = np.zeros((len(emb), 2), dtype='U7')
     colors[labels[:,0] == 0, 0] = pal[0]
     colors[labels[:,0] == 1, 0] = pal[1]
     colors[labels[:,0] == 2, 0] = pal[2]
 
+    orig_labels = labels[:,1].copy()
+    labels[orig_labels==2, 1] = 3
+    labels[orig_labels==3, 1] = 2
+
     colors[labels[:,1] == 0, 1] = pal[0]
     colors[labels[:,1] == 1, 1] = pal[1]
-    colors[labels[:,1] == 2, 1] = pal[3]
-    colors[labels[:,1] == 3, 1] = pal[2]
+    colors[labels[:,1] == 2, 1] = pal[2]
+    colors[labels[:,1] == 3, 1] = pal[3]
 
     if axes is None:
         fig, axes = plt.subplots(2,2)
 
-    dendrogram_scatterplot(axes[0], Z, emb, colors[:, 0])
-    dendrogram_scatterplot(axes[1], Z, emb, colors[:, 1])
+    dendrogram_scatterplot(axes[0], Z, emb, colors[:, 0], stretch=stretch, convex=convex)
+    dendrogram_scatterplot(axes[1], Z, emb, colors[:, 1], stretch=stretch, convex=convex)
 
 
 def sim_sweep_plot(noc_est, true_nocs, violin=True, ax=None, data_below=False,
@@ -368,7 +379,7 @@ def plot_max1d_simdata_results(path, ax=None, flip=False, fontsize='x-large'):
     sim_sweep_plot(est_noc_max1d, true_noc, ax=ax, flip=flip, fontsize=fontsize)
 
 
-def make_clustered_plot(emb, n_clusters, ax=None, cmap='tab10'):
+def make_clustered_plot(emb, n_clusters, ax=None, cmap='tab10', stretch=None):
     """
     Plot 2-D UMAP embedding. Cluster embedding and shade around the
     resulting clusters
@@ -388,7 +399,7 @@ def make_clustered_plot(emb, n_clusters, ax=None, cmap='tab10'):
         mask = labels == cl_l
         colors[mask] = pal[cl_l]
 
-    cluster_results_plot(emb, colors, ax=ax)
+    cluster_results_plot(emb, colors, ax=ax, stretch=stretch)
 
 
 def get_real_noc(tested_noc, foc, smooth=True, use_median=False, spread_asm=True, spread_foc=True):

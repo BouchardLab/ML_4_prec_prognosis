@@ -49,6 +49,12 @@ class TrackTBIFile(object):
 
     __bases = 'bases'
 
+    __viz = 'viz'
+    __bm_emb = 'biomarker_emb'
+    __oc_emb = 'outcome_emb'
+    __bm_col = 'biomarker_colors'
+    __oc_col = 'outcome_colors'
+
     @classmethod
     def bases(cls, d):
         return d + '_' + cls.__bases
@@ -69,13 +75,19 @@ class TrackTBIFile(object):
                 g = f[subgroup]
             self.biomarkers = g[self.__bm][:]
             self.outcomes = g[self.__oc][:]
-            self.biomarker_features = self.__check_features(g, self.__bm_feat)
-            self.outcome_features = self.__check_features(g, self.__oc_feat)
-            self.patient_ids = self.__check_features(g, self.__pid)
+            self.biomarker_features = self.__check_dset(g, self.__bm_feat, string=True)
+            self.outcome_features = self.__check_dset(g, self.__oc_feat, string=True)
+            self.patient_ids = self.__check_dset(g, self.__pid, string=True)
             self.biomarker_type = self.__check_feat_type(g, self.__bm_feat_type, self.biomarker_features)
             self.outcome_type = self.__check_feat_type(g, self.__oc_feat_type, self.outcome_features)
             self.nmf = self.__check_decomp(self.__nmf, g)
             self.cca = self.__check_decomp(self.__cca, g)
+            if self.__viz in g:
+                sg = g[self.__viz]
+                self.biomarker_emb = self.__check_dset(sg, self.__bm_emb)
+                self.outcome_emb = self.__check_dset(sg, self.__oc_emb)
+                self.biomarker_colors = self.__check_dset(sg, self.__bm_col, string=True)
+                self.outcome_colors = self.__check_dset(sg, self.__oc_col, string=True)
 
         idx = np.where(self.biomarker_features == 'GCSMildModSevereRecode')[0][0]
         gcs_simple = self.biomarkers[:, idx]
@@ -83,7 +95,6 @@ class TrackTBIFile(object):
         self.gcs_simple[gcs_simple == 0.0] = 'Mild'
         self.gcs_simple[gcs_simple == 1.0] = 'Moderate'
         self.gcs_simple[gcs_simple == 2.0] = 'Severe'
-
 
     def biomarker_df(self):
         return pd.DataFrame(data=self.biomarkers, columns=self.biomarker_features, index=self.patient_ids)
@@ -113,10 +124,14 @@ class TrackTBIFile(object):
                 ret[k] = self.__decode(grp[k])
         return pd.DataFrame(data=ret, index=feat_names)
 
-    def __check_features(self, grp, features):
+    def __check_dset(self, grp, name, string=False):
         ret = None
-        if features in grp:
-            return self.__decode(grp[features])
+        if name in grp:
+            if string:
+                ret = self.__decode(grp[name])
+            else:
+                ret = grp[name][:]
+        return ret
 
     def __decode(self, dset):
         if h5py.check_dtype(vlen=dset.dtype) == bytes:
@@ -133,6 +148,13 @@ class TrackTBIFile(object):
         dset[:] = it
         return dset
 
+    @classmethod
+    def __write_dset(cls, grp, name, data, overwrite=False):
+        if overwrite:
+            if name in grp:
+                del grp[name]
+        return grp.create_dataset(name, data=data)
+
     @staticmethod
     def check_grp(h5group, mode):
         if isinstance(h5group, str):
@@ -145,6 +167,20 @@ class TrackTBIFile(object):
         if scale.attrs.get('CLASS', None) != 'DIMENSION_SCALE':
             dset.dims.create_scale(scale, ann)
         dset.dims[dim].attach_scale(scale)
+
+    @classmethod
+    def write_viz(cls, h5group, bm_emb=None, oc_emb=None, bm_colors=None, oc_colors=None, overwrite=False):
+        if bm_emb is oc_emb is bm_colors is oc_colors is None:
+            return
+        g = h5group.require_group(cls.__viz)
+        if bm_emb is not None:
+            cls.__write_dset(g, cls.__bm_emb, bm_emb, overwrite=overwrite)
+        if oc_emb is not None:
+            cls.__write_dset(g, cls.__oc_emb, oc_emb, overwrite=overwrite)
+        if bm_colors is not None:
+            cls.__write_dset(g, cls.__bm_col, bm_colors, overwrite=overwrite)
+        if oc_colors is not None:
+            cls.__write_dset(g, cls.__oc_col, oc_colors, overwrite=overwrite)
 
     @classmethod
     def write_nmf(cls, h5group, bm, oc, bm_bases, oc_bases, **kwargs):
@@ -165,10 +201,7 @@ class TrackTBIFile(object):
             (cls.bases(cls.__oc), oc_bases),
         ]
         for name, data in pairs:
-            if overwrite:
-                if name in grp:
-                    del grp[name]
-            grp.create_dataset(name, data=data)
+            cls.__write_dset(grp, name, data, overwrite=overwrite)
 
         if metadata is not None:
             for k, v in metadata.items():

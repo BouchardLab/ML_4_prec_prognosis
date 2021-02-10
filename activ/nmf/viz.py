@@ -124,6 +124,7 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
         cumsum = cumsum / cumsum[-1]
         plot_data[i][order[cumsum > cumsum_thresh]] = 0.0
 
+    kwargs.setdefault('interpolation', 'none')
     # Plot the heatmap
     im = ax.imshow(plot_data, **kwargs)
 
@@ -424,7 +425,7 @@ def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmap='Reds'):
         ax.tick_params('both', labelsize='large')
         cax.tick_params('both', labelsize='large')
         ax.set_title(label, fontsize='x-large')
-        ax.axis('scaled')
+    #    ax.axis('scaled')
     for ax in axes[weights.shape[1]:]:
         ax.axis('off')
 
