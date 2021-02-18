@@ -2,6 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import pandas as pd
+from umap import UMAP
+
+import scipy.spatial.distance as spd
 
 import matplotlib.lines as mlines
 import matplotlib.colors as mpc
@@ -9,6 +12,88 @@ import matplotlib.colors as mpc
 from sklearn.linear_model import LinearRegression
 
 from .analytics import cv_r2_score, linefit, _check_X_y
+
+
+
+def get_nmf_colors():
+    """
+    Get plotting colors used for TRACK-TBI Pilot publication
+
+    Return:
+        (biomarker_colors, outcome_colors)
+    """
+    bm_colors = sns.color_palette('Accent', 8)
+    bm_colors = [bm_colors[i] for i in (6,5,4,2,0)]
+
+    oc_colors = sns.color_palette('Set2', 8)
+    oc_colors = [oc_colors[i] for i in (0, 1, 6, 7, 4, 5, 2, 3)]
+    return bm_colors, oc_colors
+
+
+def get_nmf_labels():
+    """
+    Get the NMF bases labels used for TRACK-TBI Pilot publication
+
+    Return:
+        (biomarker_bases_labels, outcome_bases_labels)
+    """
+    oc_bases_labels = np.array([
+        'Insomnia',
+        'Dysphoria and\ndepression', # Depression
+        'LT cognitive\nimpairment', # long-term cognitive deficits
+        'ST cognitive\nimpairment', # short-term cognitive deficits
+        'Dizziness and\nheadache',
+        'Verbal working\nmemory',    # verbal learning
+        'Good outcome',     # Recovered
+        'Positive PTSD' # PTSD
+    ])
+    bm_bases_labels = np.array([
+        'SES-related',    # mild/discharged
+        'PE age-related',             # pre-existing health conditions and age
+        'PE substance-related',    # pre-existing psych
+        'Severe TBI',        # severe injury
+        'Mild TBI'
+    ])
+    return bm_bases_labels, oc_bases_labels
+
+
+def get_embeddings(tbifile):
+    """
+    Get 2D UMAP embeddings used for TRACK-TBI Pilot publication
+
+    Return:
+        (biomarker_embedding, outcome_embedding)
+    """
+    bm_emb = UMAP(n_components=2, min_dist=1.0, random_state=20001).fit_transform(tbifile.biomarkers)
+
+    # compute composite distance matrix by computing separate
+    # distance matrices for binary and non-binary features
+    binary = list()
+    continuous = list()
+    for i in range(tbifile.outcomes.shape[1]):
+        uniq = np.unique(tbifile.outcomes[:, i])
+        if len(uniq) == 2:
+            binary.append(i)
+        else:
+            continuous.append(i)
+    bindist = spd.pdist(tbifile.outcomes[:, binary], metric='jaccard')
+    contdist = spd.pdist(tbifile.outcomes[:, continuous], metric='euclidean')
+    finaldist = (len(binary)*bindist/bindist.max() + len(continuous)*contdist/contdist.max())/tbifile.outcomes.shape[1]
+    oc_emb = UMAP(n_components=2, min_dist=0.5, random_state=20004, metric='precomputed').fit_transform(spd.squareform(finaldist))
+
+    return bm_emb, oc_emb
+
+
+def get_nmf_feature_types(tbifile):
+    bm_bases = tbifile.nmf.bm_bases
+    oc_bases = tbifile.nmf.oc_bases
+    bm_bases_labels, oc_bases_labels = get_nmf_labels()
+    bm_types = bm_bases_labels[np.argmax(bm_bases, axis=0)]
+    oc_types = oc_bases_labels[np.argmax(oc_bases, axis=0)]
+    bm_feats = tbifile.biomarker_features
+    oc_feats = tbifile.outcome_features
+    return pd.DataFrame(data=np.concatenate([bm_types, oc_types]),
+                        index=np.concatenate([bm_feats, oc_feats]))
 
 
 def get_labels(column, palette='hls', marker=None, solid_points=False,

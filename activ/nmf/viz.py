@@ -430,6 +430,18 @@ def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmap='Reds'):
         ax.axis('off')
 
 
+def plot_umap_nmf_weight_kde(emb, weights, axes, bases_labels, cbar=True):
+    """
+    Plot smoothed 2D histogram of weights across UMAP embeddings.
+    """
+    for ax, vec, label in zip(axes, weights.T, bases_labels):
+        sns.kdeplot(emb[:, 0], emb[:, 1], fill=True, weights=vec, thresh=0, levels=100, color='red', ax=ax, cbar=cbar)
+        ax.set_title(label, fontsize='x-large')
+
+    for ax in axes[weights.shape[1]:]:
+        ax.axis('off')
+
+
 def cumulative_plot(bases, labels, ax=None, colors=None, title=None, mark=None):
     """
     Make plot of cumulative contribution of variables to bases
