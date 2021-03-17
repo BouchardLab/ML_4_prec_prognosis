@@ -2,6 +2,8 @@ import sys
 import logging
 import math
 from sklearn.preprocessing import LabelEncoder
+from sklearn.decomposition import TruncatedSVD
+import numpy as np
 import time
 
 def get_logger(path=None, name=None, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s'):
@@ -47,3 +49,23 @@ def int_list(string):
         return list(range(ar[0], ar[1]+1))
     else:
         return list(map(int, string.split(",")))
+
+def run_tsvd(X, tol=0.0005, return_tsvd=False):
+    """Run a Truncated SVD, returning the most significant components.
+
+    Significance is determined by the *tol* parameter. Any component
+    with less than *tol* explained variance ratio is discarded
+
+    Args:
+        X (array-like)              : the matrix to decompose
+        tol (float)                 : the tolerance for determining component
+                                      significance
+        return_svd (bool)           : return the sklearn.decomposition.TruncatedSVD
+                                      instance. default is False
+    """
+    tsvd = TruncatedSVD(n_components=min(X.shape)-1).fit(X)
+    n_comps = np.where(tsvd.explained_variance_ratio_ < tol)[0][0]
+    if return_tsvd:
+        return tsvd.transform(X)[:, :n_comps], tsvd
+    else:
+        return tsvd.transform(X)[:, :n_comps]
