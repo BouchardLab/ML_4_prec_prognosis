@@ -45,13 +45,13 @@ def cdsolve(X, Y, init, reg, random_state, max_iter=1000, tol=0.1, selection='cy
                           check_input=True, return_n_iters=False,
                           tol=tol,
                           l1_ratio=1.0, eps=None, n_alphas=None)
-        except ValueError:
-            breakpoint()
+        except ValueError as e:
+            raise e
         ret[:, i] = this_coef.squeeze()
     return ret
 
 def tals_cca(X, Y, k, max_iters=1000, tol=0.0001, random_state=None, rx=0.001, ry=0.001,
-             return_cov=False):
+             return_cov=False, return_delta=False):
     random_state = check_random_state(random_state)
     n = len(X)
     p = X.shape[1]
@@ -68,6 +68,7 @@ def tals_cca(X, Y, k, max_iters=1000, tol=0.0001, random_state=None, rx=0.001, r
     S_t = None
 
     n_iters = 0
+    deltas = list()
     for _ in range(max_iters):
         H_init = H_t1.dot(LA.pinv(inprod(H_t1.T, Cxx)).dot(inprod(H_t1.T, Cxy, S_t1.T)))
         # solve for H_t, initialized at H_init, use S_t1
@@ -78,7 +79,8 @@ def tals_cca(X, Y, k, max_iters=1000, tol=0.0001, random_state=None, rx=0.001, r
         S_t = cdsolve(Y, X.dot(H_t), S_init, ry/2, random_state)
         S_t = gs(S_t, Cyy)
         n_iters += 1
-        delta = LA.norm(H_t - H_t1) + LA.norm(S_t - S_t1)
+        delta = np.abs(np.concatenate([(H_t - H_t1), (S_t - S_t1)])).mean()
+        deltas.append(delta)
         if delta < tol:
             break
         H_t1 = H_t
@@ -89,8 +91,10 @@ def tals_cca(X, Y, k, max_iters=1000, tol=0.0001, random_state=None, rx=0.001, r
         ret.append(Cxx)
         ret.append(Cyy)
         ret.append(Cxy)
-    return tuple(ret)
 
+    if return_delta:
+        ret.append(np.array(deltas))
+    return tuple(ret)
 
 
 class TALSCCA(BaseEstimator):
@@ -100,7 +104,7 @@ class TALSCCA(BaseEstimator):
 
     def __init__(self, random_state=None, scale=False,
                  n_components=1, max_iters=100, alpha_x=0.001,
-                 alpha_y=0.001):
+                 alpha_y=0.001, tol=0.001):
         """
         Args:
             n_components:               the number of canonical variates to compute
@@ -114,6 +118,7 @@ class TALSCCA(BaseEstimator):
         self.random_state = check_random_state(random_state)
         self.n_components = n_components
         self.max_iters = max_iters
+        self.tol = tol
         self.alpha_x = alpha_x
         self.alpha_y = alpha_y
         self.x_scale = None
@@ -126,14 +131,16 @@ class TALSCCA(BaseEstimator):
         if self.x_scale is not None:
             X = self.x_scale.fit_transform(X)
             Y = self.x_scale.fit_transform(Y)
-        ret = tals_cca(X, Y, self.n_components, max_iters=self.max_iters,
+        ret = tals_cca(X, Y, self.n_components, max_iters=self.max_iters, tol=self.tol,
                        rx=self.alpha_x, ry=self.alpha_y, return_cov=True,
-                       random_state=self.random_state)
+                       random_state=self.random_state, return_delta=True)
+
         H, S, self.n_iters_ = ret[0], ret[1], ret[2]
         self.x_weights_, self.y_weights_ = H, S
         self.X_cov_ = ret[3]
         self.Y_cov_ = ret[4]
         self.XY_cov_ = ret[5]
+        self.deltas_ = ret[6]
         return self
 
     def transform(self, X, Y):
