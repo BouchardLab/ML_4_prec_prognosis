@@ -431,6 +431,13 @@ def plot_umap_nmf_max(emb, weights, bases_labels, right=False, min_dist=0.0, leg
             plt.legend(handles, labels, loc='upper right', bbox_to_anchor=(0, 1.0))
 
 
+def get_point_colors(cmap, vec):
+    mappable = cm.ScalarMappable(cmap=cmap,
+                                 norm=mpc.Normalize(vmin=np.min(vec), vmax=np.max(vec)))
+    colors = np.array([mappable.to_rgba(_) for _ in vec])
+    return colors, mappable
+
+
 def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmaps='Reds'):
     """
     Plot 2-D UMAP embedding, one for each weight, coloring points according
@@ -439,9 +446,7 @@ def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmaps='Reds'):
     if isinstance(cmaps, (str, mpc.Colormap)):
         cmaps = [cmaps] * weights.shape[1]
     for ax, vec, label, cmap in zip(axes, weights.T, bases_labels, cmaps):
-        mappable = cm.ScalarMappable(cmap=plt.get_cmap(cmap),
-                                     norm=mpc.Normalize(vmin=np.min(vec), vmax=np.max(vec)))
-        colors = np.array([mappable.to_rgba(_) for _ in vec])
+        colors, mappable = get_point_colors(plt.get_cmap(cmap), vec)
         ax.scatter(emb[:, 0], emb[:, 1], c=colors)
         cax = make_axes_locatable(ax).append_axes("right", size="7%", pad="2%")
         plt.colorbar(mappable, cax=cax)
@@ -453,7 +458,7 @@ def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmaps='Reds'):
         ax.axis('off')
 
 
-def plot_umap_nmf_weight_kde(emb, weights, bases_labels, colors, cbar=True, alpha=1.0, ax=None):
+def plot_umap_nmf_weight_kde(emb, weights, bases_labels, colors, cbar=True, alpha=1.0, ax=None, scatter=False):
     """
     Plot smoothed 2D histogram of weights across UMAP embeddings.
     """
@@ -490,6 +495,10 @@ def plot_umap_nmf_weight_kde(emb, weights, bases_labels, colors, cbar=True, alph
         cmap = mpc.LinearSegmentedColormap.from_list('mycmap', [(1.0,1.0,1.0), color])
         levels = np.linspace(0, np.max(f)*1.1, 110)
         cfset = axes.contourf(xx, yy, f, levels, cmap=cmap, alpha=alpha)
+        if scatter:
+            tmp = vec - vec.min()
+            tmp = tmp / tmp.max()
+            axes.scatter(x, y, fc=color, alpha=tmp)
         axes.set_xlim(xmin, xmax)
         axes.set_ylim(ymin, ymax)
         if add_cbar:
