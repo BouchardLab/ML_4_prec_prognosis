@@ -3,6 +3,7 @@ import itertools as it
 import numpy as np
 import pandas as pd
 import scipy.cluster.hierarchy as sch
+import scipy.stats as st
 from sklearn.preprocessing import normalize
 
 import matplotlib.axes as mpl_axes
@@ -12,7 +13,6 @@ import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-
 
 from . import bases_factor_order
 from ..viz import get_labels
@@ -161,7 +161,7 @@ def bases_heatmap(data, col_labels=False, row_labels=False, sort=True, ax=None,
         ax.set_title(title, fontsize=fontsize)
 
     label_groups = None
-    if highlight is not None and highlight != False:
+    if highlight is not None and highlight is not False:
 
         if isinstance(highlight, bool):
             highlight = sns.color_palette('Set2', plot_data.shape[0])
@@ -304,11 +304,19 @@ def plot_weights(weights, colors=None, factor_order=None, ax=None, labels=None, 
         else:
             ax = ax[0]
 
+
+
     y_offset = 0.0
     colors = [colors[i] for i in factor_order]
     for i in range(stacked.shape[1]):
         ax.bar(x, stacked[:, i], bottom=y_offset, color=colors[i])
         y_offset += stacked[:, i]
+
+    no_dom = np.where(np.logical_not(stacked.sum(axis=1).astype(bool)))[0]
+    if len(no_dom) > 0:
+        ax.bar(x[no_dom], np.ones(len(no_dom)), fc='none', ec='black', hatch='//')
+
+
     ax.set_xticks(x)
     if labels is None:
         labels = factor_order
@@ -331,7 +339,8 @@ def nmfplot(weights, bases, palette=None, features=None, axes=None, bases_labels
     """
     if axes is None:
         fig, axes = plt.subplots(1, 2)
-    palette = palette or sns.color_palette('Set2', bases.shape[0])
+    if palette is None:
+        palette = sns.color_palette('Set2', bases.shape[0])
     labelsize = labelsize or fontsize
     if bases_order:
         factor_order, var_grps = plot_bases(bases, palette, feat_names=features or False,
@@ -348,16 +357,21 @@ def nmfplot(weights, bases, palette=None, features=None, axes=None, bases_labels
     return factor_order
 
 
-def plot_umap_nmf_piechart(weights, umap_emb, s=100, ax=None, fontsize=None, palette=None):
+def weights_pie_scatter(weights, emb, s=100, ax=None, palette=None):
     """
-    Plot 2-D UMAP embedding as pie-charts with distribution of weights
+    Plot NMF weights piecharts
+
+    Args:
+        weights (array)         : the NMF weights
+        emb (array)             : 2D embedding of patients
     """
+    if palette is None:
+        palette = sns.color_palette('Set2', weights.shape[1])
+
+    ax = ax or plt.gca()
     weights = np.cumsum(weights, axis=1)
     weights = 2 * np.pi * weights/np.repeat(weights.max(axis=1), weights.shape[1]).reshape(weights.shape)
 
-    if palette is None:
-        palette = sns.color_palette('Set2', weights.shape[1])
-    ax = ax or plt.gca()
     for p_i in range(weights.shape[0]):
         start = 0
         for w_i in range(weights.shape[1]):
@@ -367,7 +381,14 @@ def plot_umap_nmf_piechart(weights, umap_emb, s=100, ax=None, fontsize=None, pal
             x = [0] + np.cos(lin).tolist()
             y = [0] + np.sin(lin).tolist()
             xy = np.column_stack([x, y])
-            ax.scatter([umap_emb[p_i, 0]], [umap_emb[p_i, 1]], marker=xy, s=100, color=palette[w_i])
+            ax.scatter([emb[p_i, 0]], [emb[p_i, 1]], marker=xy, s=100, color=palette[w_i])
+
+
+def plot_umap_nmf_piechart(weights, umap_emb, s=100, ax=None, fontsize=None, palette=None):
+    """
+    Plot 2-D UMAP embedding as pie-charts with distribution of weights
+    """
+    weights_pie_scatter(weights, umap_emb, s=s, ax=ax, palette=palette)
     ax.tick_params(labelsize=fontsize)
     ax.set_xlabel('UMAP dimesion 1', fontsize=fontsize)
     ax.set_ylabel('UMAP dimesion 2', fontsize=fontsize)
@@ -410,12 +431,14 @@ def plot_umap_nmf_max(emb, weights, bases_labels, right=False, min_dist=0.0, leg
             plt.legend(handles, labels, loc='upper right', bbox_to_anchor=(0, 1.0))
 
 
-def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmap='Reds'):
+def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmaps='Reds'):
     """
     Plot 2-D UMAP embedding, one for each weight, coloring points according
     to the value of the weight
     """
-    for ax, vec, label in zip(axes, weights.T, bases_labels):
+    if isinstance(cmaps, (str, mpc.Colormap)):
+        cmaps = [cmaps] * weights.shape[1]
+    for ax, vec, label, cmap in zip(axes, weights.T, bases_labels, cmaps):
         mappable = cm.ScalarMappable(cmap=plt.get_cmap(cmap),
                                      norm=mpc.Normalize(vmin=np.min(vec), vmax=np.max(vec)))
         colors = np.array([mappable.to_rgba(_) for _ in vec])
@@ -430,16 +453,51 @@ def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmap='Reds'):
         ax.axis('off')
 
 
-def plot_umap_nmf_weight_kde(emb, weights, axes, bases_labels, cbar=True):
+def plot_umap_nmf_weight_kde(emb, weights, bases_labels, colors, cbar=True, alpha=1.0, ax=None):
     """
     Plot smoothed 2D histogram of weights across UMAP embeddings.
     """
-    for ax, vec, label in zip(axes, weights.T, bases_labels):
-        sns.kdeplot(emb[:, 0], emb[:, 1], fill=True, weights=vec, thresh=0, levels=100, color='red', ax=ax, cbar=cbar)
-        ax.set_title(label, fontsize='x-large')
 
-    for ax in axes[weights.shape[1]:]:
-        ax.axis('off')
+    if ax is None:
+        ax = plt.gca()
+
+    x = emb[:, 0]
+    y = emb[:, 1]
+    xmin, xmax = x.min(), x.max()
+    ymin, ymax = y.min(), y.max()
+
+    adj = 0.2
+    x_adj = (xmax - xmin)*adj
+    y_adj = (ymax - ymin)*adj
+
+    xmin, xmax = xmin - x_adj, xmax + y_adj
+    ymin, ymax = ymin - y_adj, ymax + y_adj
+
+    xx, yy = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
+    positions = np.vstack([xx.ravel(), yy.ravel()])
+    values = np.vstack([x, y])
+
+    add_cbar = True
+    if isinstance(ax, plt.Axes):
+        ax = [ax] * weights.shape[1]
+        add_cbar = False
+
+    fig = ax[0].figure
+
+    for axes, vec, label, color in zip(ax, weights.T, bases_labels, colors):
+        kernel = st.gaussian_kde(values, bw_method='scott', weights=vec)
+        f = np.reshape(kernel(positions).T, xx.shape)
+        cmap = mpc.LinearSegmentedColormap.from_list('mycmap', [(1.0,1.0,1.0), color])
+        levels = np.linspace(0, np.max(f)*1.1, 110)
+        cfset = axes.contourf(xx, yy, f, levels, cmap=cmap, alpha=alpha)
+        axes.set_xlim(xmin, xmax)
+        axes.set_ylim(ymin, ymax)
+        if add_cbar:
+            axes.set_title(label, fontsize='x-large')
+            fig.colorbar(cfset, ax=axes)
+
+    for axes in ax[weights.shape[1]:]:
+        axes.axis('off')
 
 
 def cumulative_plot(bases, labels, ax=None, colors=None, title=None, mark=None):
