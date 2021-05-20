@@ -8,6 +8,7 @@ import scipy.spatial.distance as spd
 
 import matplotlib.lines as mlines
 import matplotlib.colors as mpc
+from matplotlib.patches import Polygon
 
 from sklearn.linear_model import LinearRegression
 
@@ -245,3 +246,132 @@ def plot_confusion_matrix(cm, classes,
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     plt.tight_layout()
+
+
+def venn5_count(data):
+    data = (data > 0).astype(int)
+    c = 5
+    set1 = list()
+    set1_mem = list()
+    set4 = list()
+    set4_mem = list()
+    mask = np.array([0]*5)
+    for i in range(c):
+        mask[i] = 1
+        comp = np.logical_not(mask)
+        set1_mem.append(np.where(mask)[0]+1)
+        set4_mem.append(np.where(comp)[0]+1)
+        set1.append((data == mask).all(axis=1).sum())
+        set4.append((data == comp).all(axis=1).sum())
+        mask[i] = 0
+
+    set2 = list()
+    set2_mem = list()
+    set3 = list()
+    set3_mem = list()
+    for i in range(c):
+        mask[i] = 1
+        for j in range(i+1, c):
+            mask[j] = 1
+            comp = np.logical_not(mask)
+            set2_mem.append(np.where(mask)[0]+1)
+            set3_mem.append(np.where(comp)[0]+1)
+            set2.append((data == mask).all(axis=1).sum())
+            set3.append((data == comp).all(axis=1).sum())
+            mask[j] = 0
+        mask[i] = 0
+
+    def alljoin(l):
+        return ["".join(str(x) for x in ar) for ar in l]
+
+    set1_mem = alljoin(set1_mem)
+    set2_mem = alljoin(set2_mem)
+    set3_mem = alljoin(set3_mem)
+    set4_mem = alljoin(set4_mem)
+    set5_mem = ['12345']
+    set5 = [(data.sum(axis=1) == 5).sum()]
+
+    set3 = set3[::-1]
+    set3_mem = set3_mem[::-1]
+    set4 = set4[::-1]
+    set4_mem = set4_mem[::-1]
+
+    counts = np.concatenate([set1, set2, set3, set4, set5])
+    labels = np.concatenate([set1_mem, set2_mem, set3_mem, set4_mem, set5_mem])
+    return labels, counts
+
+
+def venn5_text_locs():
+    text_locs = np.array([[-13,-3,8,9,-4,-7.5,7.5,-9,-8,4,6.5,-2,9,-4,1.4,4,-7.5,-3.5,7.5,-6,-6.5,6,1.5,4,-0.5,4.5,0,-5,-3.5,3.5,0],
+                      [1,12,8,-8,-12,6.5,4.5,1,-4,8.5,-6,8.5,-1.5,-8,-9,5,3.5,6,1.5,-6,-1.5,-2,8,-7,-6.5,2,5.5,2,-3.5,-4,0]]).T
+    text_locs[:, 0] -= 1
+    return text_locs
+
+
+def venn5_label_locs():
+    # index = [16, 1, 2, 23, 13]
+    # text_adjust = np.array([ [2, 1.25, 1.5, 2, 2],
+    #                        [2, 1.35, 1.5, 2, 2] ]).T
+    # label_locs = text_locs[index] * text_adjust
+    # label_locs[:,1] -= 2
+    label_locs = np.array(
+             [[-18.5  ,   5. ],
+              [ -5.  ,  14.2],
+              [ 10.5 ,  9.5 ],
+              [  6.  , -18.5 ],
+              [-10.  , -18 ]])
+    return label_locs
+
+
+def venn5(cell_counts, ax=None, labels=["one", "two", "three", "four", "five"], labelsize=16,
+          countsize=12,
+          colors=["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]):
+    n = 70
+    xhull = list()
+    yhull = list()
+
+    for i in range(1, n+1):
+        xhull.append(np.cos((i*2*np.pi)/n))
+        yhull.append(np.sin((i*2*np.pi)/n))
+
+    adjust = [ 10,10.35,10.6,10.5,10.4,10.3,10.1,9.6,9,8.5,
+                8,7.625,7.25,7.125,7,6.875,6.75,6.875,7,7.125,
+                7.25,7.625,8.1,9.125,10.25,11.375,12.5,13.15,13.8,14.3,
+                14.6,14.725,14.7,14.7,14.7,14.4,14.1,13.8,13.5,12.8,
+                12.1,11.15,10.2,9.6,8.95,8.3,7.7,7,6.25,5.6,
+                5,4.75,4.5,4.25,4,3.8,3.6,3.45,3.45,3.45,
+                3.5,3.625,3.75,3.825,4,4.25,4.5,5.75,7.25,8.5 ]
+
+    adjust = np.array(adjust)
+    xhull = np.array(xhull)
+    yhull = np.array(yhull)
+
+    newxhull = xhull * adjust
+    newyhull = yhull * adjust
+
+    if ax is None:
+        ax = plt.gca()
+
+    ax.set_aspect("equal")
+    ax.set_box_aspect(1)
+    ax.autoscale()
+    ax.axis('off')
+
+
+    new_adjust = adjust
+    for i in range(5):
+        x = xhull * new_adjust
+        y = yhull * new_adjust
+
+        ax.plot(np.append(x, [x[0]]), np.append(y, [y[0]]), c=colors[i])
+        ax.add_patch(Polygon(np.array([x, y]).T, alpha=0.2, color=colors[i]))
+        new_adjust = np.append(new_adjust[14:], new_adjust[:14])
+
+    text_locs = venn5_text_locs()
+    label_locs = venn5_label_locs()
+
+    for i in range(text_locs.shape[0]):
+        ax.text(text_locs[i, 0], text_locs[i, 1], str(cell_counts[i]), fontsize=countsize)
+
+    for i in range(len(labels)):
+        ax.text(label_locs[i, 0], label_locs[i, 1], labels[i], fontsize=labelsize)
