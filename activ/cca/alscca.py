@@ -34,30 +34,35 @@ def gs(A, M):
     return A
 
 
-def cdsolve(X, Y, init, reg, random_state, max_iter=1000, tol=0.1, selection='cyclic'):
-    ret = np.zeros((X.shape[1], Y.shape[1]), dtype=np.float64)
-    for i in range(Y.shape[1]):
-        try:
-            _, this_coef, this_dual_gap = \
-                enet_path(X, Y[:, i], coef_init=init[:, i], alphas=[reg],
-                          random_state=random_state, max_iter=max_iter,
-                          selection=selection, precompute='auto',
-                          check_input=True, return_n_iters=False,
-                          tol=tol,
-                          l1_ratio=1.0, eps=None, n_alphas=None)
-        except ValueError as e:
-            raise e
-        ret[:, i] = this_coef.squeeze()
-    return ret
+def cdsolve(X, Y, init, reg, random_state, l1_ratio=1.0, max_iter=1000, tol=0.1, selection='cyclic'):
+    """
+    Returns:
+        coef (array)        : shape is (n_predictors, n_responses)
+    """
+    try:
+        _, ret, this_dual_gap = \
+            enet_path(X, Y, coef_init=init.T, alphas=[reg],
+                      random_state=random_state, max_iter=max_iter,
+                      selection=selection, precompute='auto',
+                      check_input=True, return_n_iters=False,
+                      tol=tol,
+                      l1_ratio=l1_ratio, eps=None, n_alphas=None)
+    except ValueError as e:
+        raise e
 
-def tals_cca(X, Y, k, max_iters=1000, tol=0.0001, random_state=None, rx=0.001, ry=0.001,
+    return ret.squeeze().T
+
+
+def tals_cca(X, Y, k, max_iters=1000, tol=0.0001, random_state=None,
+             alpha_x=0.001, alpha_y=0.001,
+             l1_ratio_x=1.0, l1_ratio_y=1.0,
              return_cov=False, return_delta=False):
     random_state = check_random_state(random_state)
     n = len(X)
     p = X.shape[1]
     q = Y.shape[1]
-    Cxx = X.T.dot(X)/n + rx*np.identity(p)    # regularize for
-    Cyy = Y.T.dot(Y)/n + ry*np.identity(q)    # stability
+    Cxx = X.T.dot(X)/n + alpha_x*np.identity(p)    # regularize for
+    Cyy = Y.T.dot(Y)/n + alpha_y*np.identity(q)    # stability
     Cxy = X.T.dot(Y)/n
     H_0 = random_state.standard_normal((p, k))
     S_0 = random_state.standard_normal((q, k))
@@ -72,11 +77,11 @@ def tals_cca(X, Y, k, max_iters=1000, tol=0.0001, random_state=None, rx=0.001, r
     for _ in range(max_iters):
         H_init = H_t1.dot(LA.pinv(inprod(H_t1.T, Cxx)).dot(inprod(H_t1.T, Cxy, S_t1.T)))
         # solve for H_t, initialized at H_init, use S_t1
-        H_t = cdsolve(X, Y.dot(S_t1), H_init, rx/2, random_state)
+        H_t = cdsolve(X, Y.dot(S_t1), H_init, alpha_x/2, random_state, l1_ratio=l1_ratio_x)
         H_t = gs(H_t, Cxx)
         S_init = S_t1.dot(LA.pinv(inprod(S_t1.T, Cyy)).dot(inprod(S_t1.T, Cxy.T, H_t.T)))
         # solve for S_t, initialized at S_init, use H_t
-        S_t = cdsolve(Y, X.dot(H_t), S_init, ry/2, random_state)
+        S_t = cdsolve(Y, X.dot(H_t), S_init, alpha_y/2, random_state, l1_ratio=l1_ratio_y)
         S_t = gs(S_t, Cyy)
         n_iters += 1
         delta = np.abs(np.concatenate([(H_t - H_t1), (S_t - S_t1)])).mean()
@@ -104,7 +109,7 @@ class TALSCCA(BaseEstimator):
 
     def __init__(self, random_state=None, scale=False,
                  n_components=1, max_iters=100, alpha_x=0.001,
-                 alpha_y=0.001, tol=0.001):
+                 alpha_y=0.001, l1_ratio_x=1.0, l1_ratio_y=1.0, tol=0.001):
         """
         Args:
             n_components:               the number of canonical variates to compute
@@ -121,6 +126,8 @@ class TALSCCA(BaseEstimator):
         self.tol = tol
         self.alpha_x = alpha_x
         self.alpha_y = alpha_y
+        self.l1_ratio_x = l1_ratio_x
+        self.l1_ratio_y = l1_ratio_y
         self.x_scale = None
         self.y_scale = None
         if scale:
@@ -132,7 +139,8 @@ class TALSCCA(BaseEstimator):
             X = self.x_scale.fit_transform(X)
             Y = self.x_scale.fit_transform(Y)
         ret = tals_cca(X, Y, self.n_components, max_iters=self.max_iters, tol=self.tol,
-                       rx=self.alpha_x, ry=self.alpha_y, return_cov=True,
+                       alpha_x=self.alpha_x, alpha_y=self.alpha_y, return_cov=True,
+                       l1_ratio_x=self.l1_ratio_x, l1_ratio_y=self.l1_ratio_y,
                        random_state=self.random_state, return_delta=True)
 
         H, S, self.n_iters_ = ret[0], ret[1], ret[2]
