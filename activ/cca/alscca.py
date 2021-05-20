@@ -5,7 +5,7 @@ from sklearn.base import BaseEstimator
 from sklearn.cross_decomposition import CCA
 import numpy as np
 import numpy.linalg as LA
-from sklearn.linear_model import enet_path, ridge_regression
+from sklearn.linear_model import enet_path
 
 
 def inprod(u, M, v=None):
@@ -41,19 +41,14 @@ def cdsolve(X, Y, init, reg, random_state, l1_ratio=1.0, max_iter=1000, tol=0.1,
     """
     try:
 
-        if l1_ratio == 0.0:
-            ret = ridge_regression(X, Y, reg, random_state=random_state, tol=tol,
-                             return_n_iter=False, max_iter=max_iter)
-            ret = ret.T
-        else:
-            _, ret, this_dual_gap = \
-                enet_path(X, Y, coef_init=init.T, alphas=[reg],
-                          random_state=random_state, max_iter=max_iter,
-                          selection=selection, precompute='auto',
-                          check_input=True, return_n_iters=False,
-                          tol=tol,
-                          l1_ratio=l1_ratio, eps=None, n_alphas=None)
-            ret = ret.squeeze().T
+        _, ret, this_dual_gap = \
+            enet_path(X, Y, coef_init=init.T, alphas=[reg],
+                      random_state=random_state, max_iter=max_iter,
+                      selection=selection, precompute='auto',
+                      check_input=True, return_n_iters=False,
+                      tol=tol,
+                      l1_ratio=l1_ratio, eps=None, n_alphas=None)
+        ret = ret.squeeze().T
     except ValueError as e:
         raise e
 
