@@ -22,7 +22,7 @@ def _check_array(v):
 
 def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitline=True,
                          solid_points=False, markeredgewidth=1, markersize=None,
-                         fontsize=16,
+                         fontsize=16, legend_fontsize=None,
                          title=None, xlabel=None, ylabel=None, legend_title=None, ax=None):
     """
     Args:
@@ -62,6 +62,21 @@ def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitlin
         scatter_kwargs['facecolors'] = 'none'
         scatter_kwargs['linewidths'] = mk_kwargs['markeredgewidth']
 
+    mk_kwargs = dict(marker='o', color='none')
+    scatter_kwargs = dict()
+
+    if solid_points:
+        markersize = markersize or 5
+        scatter_kwargs['c'] = colors
+        colors_key = 'c'
+    else:
+        markersize = markersize or 9
+        mk_kwargs['markerfacecolor'] = 'none'
+        mk_kwargs['markeredgewidth'] = markeredgewidth or 1
+        colors_key = 'edgecolors'
+        scatter_kwargs['facecolors'] = 'none'
+        scatter_kwargs['linewidths'] = mk_kwargs['markeredgewidth']
+
     mk_kwargs['markersize'] = markersize
     scatter_kwargs['s'] = markersize**2
 
@@ -75,8 +90,14 @@ def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitlin
 
     ax.scatter(_x, _y, **scatter_kwargs)
 
+    if legend_fontsize is None:
+        legend_fontsize = fontsize-4
+
     if patches is not None:
-        ax.legend(handles=patches, title=legend_title, loc=2, fontsize=fontsize-4)
+        print("legend_fontsize", legend_fontsize)
+        ax.legend(handles=patches, title=legend_title, loc=2, fontsize=legend_fontsize)
+
+    ax.tick_params('both', labelsize=fontsize)
 
     if title is not None:
         ax.set_title(title, fontsize=fontsize)
@@ -90,11 +111,12 @@ def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitlin
         cv_r2 = r2_score(_y, y_pred)
 
         regressor.fit(_x, _y)
-        raw_r2 = r2_score(_y, regressor.predict(_x))
+        # raw_r2 = r2_score(_y, regressor.predict(_x))
 
         xfit = np.linspace(min(_x),max(_x), 1000).reshape((1000,1))
         yfit = regressor.predict(xfit)
 
         ax.plot(xfit, yfit, color='black')
-        ax.text(0.7, 0.1, "$R^2$ (fit) = %0.4f\n$R^2$ (cv) = %0.4f" % (raw_r2, cv_r2), size=fontsize, transform=ax.transAxes)
+        x_pos, y_pos = (0.5, 0.1)
+        ax.text(x_pos, y_pos, "$R^2$ = %0.4f" % cv_r2, size=fontsize, transform=ax.transAxes)
     return ax
