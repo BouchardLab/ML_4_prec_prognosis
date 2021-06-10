@@ -89,12 +89,15 @@ class TrackTBIFile(object):
                 self.biomarker_colors = self.__check_dset(sg, self.__bm_col, string=True)
                 self.outcome_colors = self.__check_dset(sg, self.__oc_col, string=True)
 
-        idx = np.where(self.biomarker_features == 'GCSMildModSevereRecode')[0][0]
-        gcs_simple = self.biomarkers[:, idx]
-        self.gcs_simple = np.zeros(len(gcs_simple), dtype='U8')
-        self.gcs_simple[gcs_simple == 0.0] = 'Mild'
-        self.gcs_simple[gcs_simple == 1.0] = 'Moderate'
-        self.gcs_simple[gcs_simple == 2.0] = 'Severe'
+        if self.biomarker_features is not None:
+            idx = np.where(self.biomarker_features == 'GCSMildModSevereRecode')[0][0]
+            gcs_simple = self.biomarkers[:, idx]
+            self.gcs_simple = np.zeros(len(gcs_simple), dtype='U8')
+            self.gcs_simple[gcs_simple == 0.0] = 'Mild'
+            self.gcs_simple[gcs_simple == 1.0] = 'Moderate'
+            self.gcs_simple[gcs_simple == 2.0] = 'Severe'
+        else:
+            self.gcs_simple = None
 
     def biomarker_df(self):
         return pd.DataFrame(data=self.biomarkers, columns=self.biomarker_features, index=self.patient_ids)
