@@ -1,5 +1,5 @@
 from sklearn.utils import check_random_state
-from sklearn.preprocessing import normalize
+from sklearn.preprocessing import normalize, StandardScaler
 from sklearn.linear_model import Lasso
 from sklearn.base import BaseEstimator
 from sklearn.cross_decomposition import CCA
@@ -17,9 +17,9 @@ def gs(A, M):
     """
     Gram-Schmidt with inner product for M
     """
-    orig_A = A
     A = A.copy()
     A[:, 0] = A[:, 0] / np.sqrt(inprod(A[:, 0], M))
+
     for i in range(1, A.shape[1]):
         Ai = A[:, i]
         for j in range(0, i):
@@ -80,10 +80,14 @@ def tals_cca(X, Y, k, max_iter=1000, tol=0.0001, random_state=None,
         H_init = H_t1.dot(LA.pinv(inprod(H_t1.T, Cxx)).dot(inprod(H_t1.T, Cxy, S_t1.T)))
         # solve for H_t, initialized at H_init, use S_t1
         H_t = cdsolve(X, Y.dot(S_t1), H_init, alpha_x/2, random_state, l1_ratio=l1_ratio_x)
+        if H_t.ndim == 1:
+            H_t = H_t.reshape(-1, 1)
         H_t = gs(H_t, Cxx)
         S_init = S_t1.dot(LA.pinv(inprod(S_t1.T, Cyy)).dot(inprod(S_t1.T, Cxy.T, H_t.T)))
         # solve for S_t, initialized at S_init, use H_t
         S_t = cdsolve(Y, X.dot(H_t), S_init, alpha_y/2, random_state, l1_ratio=l1_ratio_y)
+        if S_t.ndim == 1:
+            S_t = S_t.reshape(-1, 1)
         S_t = gs(S_t, Cyy)
         n_iters += 1
         delta = np.abs(np.concatenate([(H_t - H_t1), (S_t - S_t1)])).mean()
@@ -198,7 +202,7 @@ class TALSCCA(BaseEstimator):
     def fit(self, X, Y):
         if self.x_scale_ is not None:
             X = self.x_scale_.fit_transform(X)
-            Y = self.x_scale_.fit_transform(Y)
+            Y = self.y_scale_.fit_transform(Y)
         ret = tals_cca(X, Y, self.n_components, max_iter=self.max_iter, tol=self.tol,
                        alpha_x=self.alpha_x, alpha_y=self.alpha_y, return_cov=True,
                        l1_ratio_x=self.l1_ratio_x, l1_ratio_y=self.l1_ratio_y,
