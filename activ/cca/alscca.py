@@ -55,7 +55,7 @@ def cdsolve(X, Y, init, reg, random_state, l1_ratio=1.0, max_iter=1000, tol=0.1,
     return ret
 
 
-def tals_cca(X, Y, k, max_iters=1000, tol=0.0001, random_state=None,
+def tals_cca(X, Y, k, max_iter=1000, tol=0.0001, random_state=None,
              alpha_x=0.001, alpha_y=0.001,
              l1_ratio_x=1.0, l1_ratio_y=1.0,
              return_cov=False, return_delta=False):
@@ -76,7 +76,7 @@ def tals_cca(X, Y, k, max_iters=1000, tol=0.0001, random_state=None,
 
     n_iters = 0
     deltas = list()
-    for _ in range(max_iters):
+    for _ in range(max_iter):
         H_init = H_t1.dot(LA.pinv(inprod(H_t1.T, Cxx)).dot(inprod(H_t1.T, Cxy, S_t1.T)))
         # solve for H_t, initialized at H_init, use S_t1
         H_t = cdsolve(X, Y.dot(S_t1), H_init, alpha_x/2, random_state, l1_ratio=l1_ratio_x)
@@ -107,45 +107,104 @@ def tals_cca(X, Y, k, max_iters=1000, tol=0.0001, random_state=None,
 class TALSCCA(BaseEstimator):
     """
     Alternating Least Squares Canonical Correlation Analysis
-    """
 
+
+    After fitting, CCA weights are accessible from *x_weights_* and *y_weights_*.
+
+
+    Parameters
+    ----------
+    n_components: int, default=1
+        the number of canonical variates to compute
+
+    max_iter: int, default=100
+        maximum number of alternating least-squares iterations
+
+    alpha_x: float, default=0.001
+        regularization strength for regressing Y onto X
+
+    alpha_y: float, default=0.001
+        regularization strength for regressing X onto Y
+
+    l1_ratio_x: float, default=1.0
+        ratio of L1-regularization for regressing Y onto X
+
+    l1_ratio_y: float, default=1.0
+        ratio of L1-regularization for regressing X onto Y
+
+    scale: bool, default=False
+        standardize X and Y matrices before fitting
+
+    random_state: int or RandomState, default=None
+        the seed or RandomState object to use
+
+
+    Attributes
+    ----------
+    x_weights_: ndarray of shape (n_features, n_components)
+        *X* data weights
+
+    y_weights_: ndarray of shape (n_targets, n_components)
+        *Y* data weights
+
+    X_cov_: ndarray of shape (n_features, n_features)
+        *X* data covariance matrix
+
+    Y_cov_: ndarray of shape (n_targets, n_targets)
+        *Y* data covariance matrix
+
+    XY_cov_: ndarray of shape (n_features, n_targets)
+        *X-Y* cross-covariance matrix
+
+    n_iter_: int
+        the number of alternating least squares iterations that were run
+
+    x_scale_: None or StandardScaler
+        StandardScaler object used to scale X data *scale* is *True*, None otherwise
+
+    y_scale_: None or StandardScaler
+        StandardScaler object used to scale Y data *scale* is *True*, None otherwise
+
+
+    Example
+    -------
+
+    >>> from activ.cca.alscca import TALSCCA
+    >>> from activ.readfile import load_data
+    >>> tbifile = load_data()
+    >>> talscca = TALSCCA(scale=True)
+    >>> talscca.fit(tbifile.biomarkers, tbifile.outcomes)
+    >>> bm_cv, oc_cv = talscca.transform(tbifile.biomarkers, tbifile.outcomes)
+
+    """
     def __init__(self, random_state=None, scale=False,
-                 n_components=1, max_iters=100, alpha_x=0.001,
+                 n_components=1, max_iter=100, alpha_x=0.001,
                  alpha_y=0.001, l1_ratio_x=1.0, l1_ratio_y=1.0, tol=0.001):
-        """
-        Args:
-            n_components:               the number of canonical variates to compute
-            max_iter:                   maximum number of alternating least-squares
-                                        iterations
-            alpha_x:                    regularization for regressing Y onto X
-            alpha_y:                    regularization for regressing X onto Y
-            scale:                      standardize X and Y matrices before fitting
-        """
 
         self.random_state = check_random_state(random_state)
         self.n_components = n_components
-        self.max_iters = max_iters
+        self.max_iter = max_iter
         self.tol = tol
         self.alpha_x = alpha_x
         self.alpha_y = alpha_y
         self.l1_ratio_x = l1_ratio_x
         self.l1_ratio_y = l1_ratio_y
-        self.x_scale = None
-        self.y_scale = None
+        self.x_scale_ = None
+        self.y_scale_ = None
         if scale:
-            self.x_scale = StandardScaler()
-            self.y_scale = StandardScaler()
+            self.x_scale_ = StandardScaler()
+            self.y_scale_ = StandardScaler()
 
     def fit(self, X, Y):
-        if self.x_scale is not None:
-            X = self.x_scale.fit_transform(X)
-            Y = self.x_scale.fit_transform(Y)
-        ret = tals_cca(X, Y, self.n_components, max_iters=self.max_iters, tol=self.tol,
+        if self.x_scale_ is not None:
+            X = self.x_scale_.fit_transform(X)
+            Y = self.x_scale_.fit_transform(Y)
+        ret = tals_cca(X, Y, self.n_components, max_iter=self.max_iter, tol=self.tol,
                        alpha_x=self.alpha_x, alpha_y=self.alpha_y, return_cov=True,
                        l1_ratio_x=self.l1_ratio_x, l1_ratio_y=self.l1_ratio_y,
                        random_state=self.random_state, return_delta=True)
 
-        H, S, self.n_iters_ = ret[0], ret[1], ret[2]
+        H, S, self.n_iter_ = ret[0], ret[1], ret[2]
         self.x_weights_, self.y_weights_ = H, S
         self.X_cov_ = ret[3]
         self.Y_cov_ = ret[4]
@@ -156,9 +215,9 @@ class TALSCCA(BaseEstimator):
     def transform(self, X, Y):
         if getattr(self, 'x_weights_', None) is None:
             raise ValueError("TALSCCA is not fit")
-        if self.x_scale is not None:
-            X = self.x_scale.transform(X)
-            Y = self.y_scale.transform(Y)
+        if self.x_scale_ is not None:
+            X = self.x_scale_.transform(X)
+            Y = self.y_scale_.transform(Y)
         return X.dot(self.x_weights_), Y.dot(self.y_weights_)
 
     def fit_transform(self, X, Y):
