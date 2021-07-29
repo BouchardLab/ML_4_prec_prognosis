@@ -16,15 +16,43 @@ def compute_cos(x, y):
 
 def compute_explained_variance(X_cv, Y_cv, Y, perc_var=0.875, method='r2', tol=0.01, comp_method='pca'):
     """
-    Args:
-        perc_var (float, str):                      the percent variance to keep. if 'auto', pick cutoff
-                                                    at where percent variance plateaus
-        tol (float):                                the tolerance for calculating plateau
-        method (str):                               the method for calculating similarity between PCs and canonical
-                                                    variates. options are 'r2' or 'cos'
-        comp_method (str):                          the method for calculating the principal components
-                                                    options are 'pca' or 'tsvd'
+    Compute the variance explained in a response matrix *Y* by
+    a matrix *X* using their canonical variates.
 
+    Parameters
+    ----------
+    X_cv: ndarray of shape (n_samples, n_canonical_variates)
+        the predictor canonical variates
+
+    Y_cv: ndarray of shape (n_samples, n_canonical_variates)
+        the response canonical variates
+
+    Y: ndarray of shape (n_samples, n_response)
+        the original response features
+
+    perc_var: float, default=0.875
+        the percent variance to keep. if 'auto', pick cutoff
+        at where percent variance plateaus
+
+    tol: float, default=0.01
+        the tolerance for calculating the plateau
+
+    method: str, default='r2'
+        the method for calculating similarity between PCs and canonical
+        variates. options are 'r2' or 'cos'
+
+    comp_method: str, default='pca'
+        the method for calculating the principal components.
+        options are 'pca' or 'tsvd'
+
+
+    Returns
+    -------
+    exp_var: ndarray of shape (n_components)
+        the explained variance for each canonical variate
+
+    n_components: int
+        the number of components that the explained variance was caluclated for
 
     """
     if method == 'cos':
