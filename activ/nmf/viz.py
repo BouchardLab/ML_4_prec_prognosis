@@ -381,7 +381,7 @@ def weights_pie_scatter(weights, emb, s=100, ax=None, palette=None):
             x = [0] + np.cos(lin).tolist()
             y = [0] + np.sin(lin).tolist()
             xy = np.column_stack([x, y])
-            ax.scatter([emb[p_i, 0]], [emb[p_i, 1]], marker=xy, s=100, color=palette[w_i])
+            ax.scatter([emb[p_i, 0]], [emb[p_i, 1]], marker=xy, s=s, color=palette[w_i])
 
 
 def plot_umap_nmf_piechart(weights, umap_emb, s=100, ax=None, fontsize=None, palette=None):
@@ -458,7 +458,7 @@ def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmaps='Reds'):
         ax.axis('off')
 
 
-def plot_umap_nmf_weight_kde(emb, weights, bases_labels, colors, cbar=True, alpha=1.0, ax=None, scatter=False):
+def plot_umap_nmf_weight_kde(emb, weights, bases_labels, colors, cbar=True, alpha=1.0, ax=None, scatter=False, scatter_kw=None):
     """
     Plot smoothed 2D histogram of weights across UMAP embeddings.
     """
@@ -487,6 +487,8 @@ def plot_umap_nmf_weight_kde(emb, weights, bases_labels, colors, cbar=True, alph
         ax = [ax] * weights.shape[1]
         add_cbar = False
 
+    add_cbar = cbar and add_cbar
+
     fig = ax[0].figure
 
     for axes, vec, label, color in zip(ax, weights.T, bases_labels, colors):
@@ -498,7 +500,11 @@ def plot_umap_nmf_weight_kde(emb, weights, bases_labels, colors, cbar=True, alph
         if scatter:
             tmp = vec - vec.min()
             tmp = tmp / tmp.max()
-            axes.scatter(x, y, fc=color, alpha=tmp)
+            if scatter_kw is None:
+                scatter_kw = dict()
+            scatter_kw.pop('fc', None)
+            scatter_kw.pop('alpha', None)
+            axes.scatter(x, y, fc=color, alpha=tmp, **scatter_kw)
         axes.set_xlim(xmin, xmax)
         axes.set_ylim(ymin, ymax)
         if add_cbar:
