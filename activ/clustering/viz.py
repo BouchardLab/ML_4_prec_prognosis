@@ -461,7 +461,8 @@ def correct_estimate(est, path, correction_dset='1sd', trim=True):
     return int(np.round(lr.predict(np.array([[est]]))[0])), int(np.round(1.96*y_err_stdev))
 
 
-def plot_real_foc_results(path, ax=None, max1d_cutoff=False, ci=None, n_sigma=1, simdata_results_path=None, fontsize='x-large'):
+def plot_real_foc_results(path, ax=None, max1d_cutoff=False, ci=None, n_sigma=1,
+                          simdata_results_path=None, fontsize='x-large', ylabel="Prediction Accuracy (% of chance)"):
     """
     Plot fold-over-chance results for real data.
 
@@ -511,12 +512,12 @@ def plot_real_foc_results(path, ax=None, max1d_cutoff=False, ci=None, n_sigma=1,
     ax.set_xticks(xticks)
     ret = ax.set_xticklabels(xticks)
 
-    ax.set_ylabel("Prediction Accuracy (% of chance)", fontsize=fontsize)
+    ax.set_ylabel(ylabel, fontsize=fontsize)
     ax.set_xlabel("# Outcome clusters", fontsize=fontsize)
     return est
 
 
-def plot_real_accuracy_chance_results(path, ax=None, fontsize='x-large'):
+def plot_real_accuracy_chance_results(path, ax=None, fontsize='x-large', ylabel="Prediction Accuracy"):
     ax = ax or plt.gca()
     real_noc, real_foc, real_accuracy, real_chance = read_clustering_results(path)
 
@@ -544,7 +545,7 @@ def plot_real_accuracy_chance_results(path, ax=None, fontsize='x-large'):
     ax.set_xticks(xticks)
     ret = ax.set_xticklabels(xticks)
 
-    ax.set_ylabel("Prediction Accuracy (% of chance)", fontsize=fontsize)
+    ax.set_ylabel(ylabel, fontsize=fontsize)
     ax.set_xlabel("# Outcome clusters", fontsize=fontsize)
 
 
