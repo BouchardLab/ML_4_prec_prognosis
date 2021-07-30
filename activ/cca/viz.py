@@ -7,6 +7,11 @@ from sklearn.linear_model import LinearRegression
 
 from ..viz import get_labels
 
+from sklearn.model_selection import cross_val_predict
+from sklearn.metrics import r2_score
+from sklearn.linear_model import LinearRegression
+from activ.viz import get_labels
+
 
 def _check_array(v):
     if isinstance(v, pd.Series):
@@ -22,7 +27,7 @@ def _check_array(v):
 
 def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitline=True,
                          solid_points=False, markeredgewidth=1, markersize=None,
-                         fontsize=16, legend_fontsize=None,
+                         fontsize=24, legend_fontsize=None,
                          title=None, xlabel=None, ylabel=None, legend_title=None, ax=None):
     """
     Args:
@@ -94,7 +99,6 @@ def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitlin
         legend_fontsize = fontsize-4
 
     if patches is not None:
-        print("legend_fontsize", legend_fontsize)
         ax.legend(handles=patches, title=legend_title, loc=2, fontsize=legend_fontsize)
 
     ax.tick_params('both', labelsize=fontsize)
