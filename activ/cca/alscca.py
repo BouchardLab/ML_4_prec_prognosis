@@ -83,7 +83,7 @@ def tals_cca(X, Y, k, max_iter=1000, tol=0.0001, random_state=None,
         if H_t.ndim == 1:
             H_t = H_t.reshape(-1, 1)
         H_t = gs(H_t, Cxx)
-        S_init = S_t1.dot(LA.pinv(inprod(S_t1.T, Cyy)).dot(inprod(S_t1.T, Cxy.T, H_t.T)))
+        S_init = S_t1.dot(LA.inv(inprod(S_t1.T, Cyy)).dot(inprod(S_t1.T, Cxy.T, H_t.T)))
         # solve for S_t, initialized at S_init, use H_t
         S_t = cdsolve(Y, X.dot(H_t), S_init, alpha_y/2, random_state, l1_ratio=l1_ratio_y)
         if S_t.ndim == 1:
