@@ -7,3 +7,5 @@ seaborn
 umap-learn
 hdbscan
 pandas
+latex
+git+https://github.com/ajtritt/concavity
