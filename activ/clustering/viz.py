@@ -15,12 +15,13 @@ from scipy.stats import entropy
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
 
-from concavity.core import concave_hull, plot_concave_hull
+from concavity.core import concave_hull
 import geopandas as gpd
 
 
 from .summarize import flatten, flatten_summarize, read_clustering_results, summarize_flattened, plot_line
 from .clustering import get_noc, get_noc_max1d_smooth
+from ..nmf.viz import plot_umap_nmf_piechart
 
 
 def make_simdata_curves(ax=None, path=None, keep_true_nocs=[10, 15, 20, 25, 30, 40], fontsize='x-large'):
@@ -144,7 +145,8 @@ def shade_around(data, ax=None, stretch=None, alpha=0.2, color='blue', convex=Tr
         ax.axis('auto')
 
 
-def cluster_results_plot(emb, colors, ax=None, stretch=None, convex=True, **kwargs):
+
+def cluster_results_plot(emb, colors, fixed_color=None, ax=None, stretch=None, convex=True, **kwargs):
     """
     Plot 2-D UMAP embedding with colors
 
@@ -155,8 +157,86 @@ def cluster_results_plot(emb, colors, ax=None, stretch=None, convex=True, **kwar
     ax = ax or plt.gca()
     for color in np.unique(colors):
         mask = colors == color
+        if fixed_color is not None:
+            color = fixed_color
         shade_around(emb[mask], ax=ax, color=color, stretch=stretch, convex=convex)
     ax.scatter(emb[:,0], emb[:,1], c='k', edgecolors='w', **kwargs)
+
+
+def circle_around(data, ax=None, stretch=None, alpha=0.2, color='none', edgecolor='black', linewidth=0.2):
+    """
+    Draw a triangulated patch around a set of data points
+
+    Args:
+        data (np.array)           : the points to draw around
+        ax (plt.Axes)             : the Axes to draw on
+        stretch (float)           : the amount to stetch the triangle vertices
+                                    from the center of the points. stretch the convex
+                                    hull
+                                    used only when convex=True
+        alpha (float)             : the transparency of the patch
+        color (str or tuple)      : the color of the patch
+        edgecolor (str or tuple)  : the edgecolor of the patch
+        linewidth (float)         : the width of the patch edge
+    """
+    ax = ax or plt.gca()
+    if stretch:
+        if stretch is True:
+            stretch = 0.05
+        x = data[:, 0]
+        y = data[:, 1]
+        center = (x.mean(), y.mean())
+        x = (x - center[0])*(1+stretch) + center[0]
+        y = (y - center[1])*(1+stretch) + center[1]
+        data = np.array([x, y]).T
+    ch = concave_hull(data, 16)
+    gpd.GeoSeries([ch]).plot(ax=ax, alpha=alpha,
+                  color=color, edgecolor=edgecolor, linewidth=linewidth)
+    ax.axis('auto')
+
+
+def cluster_plot(emb, labels, colors=None, ax=None, stretch=None, convex=True, fs='x-large', ca_kwargs=None, **kwargs):
+    """
+    Plot piecharts in 2-D UMAP embedding with clusters circled
+
+    Args:
+        emb (np.array)          : 2-D UMAP embedding
+        labels (np.array)       : cluster labels for each sample
+        colors (np.array)       : array of colors for each feature
+        stretch (float.array)   : an additional fraction to stretch circling
+        ax (plt.Axes)           : the matplotlib.Axes object to plot on
+        fs (int or str)         : the fontsize of axis labels
+    """
+    ax = ax or plt.gca()
+    ca_kwargs = dict() if ca_kwargs is None else ca_kwargs
+    for label in np.unique(labels):
+        mask = labels == label
+        circle_around(emb[mask], ax=ax, stretch=stretch, **ca_kwargs)
+    ax.tick_params('both', labelsize=fs)
+    ax.scatter(emb[:, 0], emb[:, 1], s=80, color='k')
+    ax.set_xlabel('UMAP dimesion 1', fontsize=fs)
+    ax.set_ylabel('UMAP dimesion 2', fontsize=fs)
+
+
+def cluster_piecharts_plot(emb, labels, weights, colors=None, ax=None, stretch=None, convex=True, fs='x-large', ca_kwargs=None, **kwargs):
+    """
+    Plot piecharts in 2-D UMAP embedding with clusters circled
+
+    Args:
+        emb (np.array)          : 2-D UMAP embedding
+        weights (np.array)      : nonnegative weights for each sample
+        labels (np.array)       : cluster labels for each sample
+        colors (np.array)       : array of colors for each feature
+        stretch (float.array)   : an additional fraction to stretch circling
+        ax (plt.Axes)           : the matplotlib.Axes object to plot on
+        fs (int or str)         : the fontsize of axis labels
+    """
+    ax = ax or plt.gca()
+    ca_kwargs = dict() if ca_kwargs is None else ca_kwargs
+    for label in np.unique(labels):
+        mask = labels == label
+        circle_around(emb[mask], ax=ax, stretch=stretch, **ca_kwargs)
+    plot_umap_nmf_piechart(weights, emb, ax=ax, fontsize=fs, palette=colors, **kwargs)
 
 
 def dendrogram_scatterplot(axes, Z, emb, labels, ticks=True, stretch=None, convex=True):
@@ -277,12 +357,12 @@ def sim_sweep_plot(noc_est, true_nocs, violin=True, ax=None, data_below=False,
     mx = np.max(noc_est)
     ypos = (mx - mn) * 0.85 + mn
 
-    model_text = r"$y \approx %0.4fx + %0.4f$"
+    model_text = r"$y \approx %0.2fx + %0.2f$"
     if lr.intercept_ < 0.0:
-        model_text = r"$y \approx %0.4fx %0.4f$"
+        model_text = r"$y \approx %0.2fx %0.2f$"
     model_text = model_text % (lr.coef_[0], lr.intercept_)
     text = ("\n"
-            r"$R^2 \approx %0.4f$")  % r2
+            r"$R^2 \approx %0.2f$")  % r2
     ax.text(xpos, ypos, model_text + text, fontsize=fontsize)
 
     #########################################
@@ -379,27 +459,20 @@ def plot_max1d_simdata_results(path, ax=None, flip=False, fontsize='x-large'):
     sim_sweep_plot(est_noc_max1d, true_noc, ax=ax, flip=flip, fontsize=fontsize)
 
 
-def make_clustered_plot(emb, n_clusters, ax=None, cmap='tab10', stretch=None, **kwargs):
+def make_clustered_plot(emb, n_clusters, feature_colors, weights=None, ax=None, stretch=None, fs='x-large', **kwargs):
     """
     Plot 2-D UMAP embedding. Cluster embedding and shade around the
-    resulting clusters
+    resulting clusters. Pass in weights to plot points as pie charts
     """
     ax = ax or plt.gca()
     dist = pdist(emb)
     Z = linkage(dist, method='ward')
     labels = cut_tree(Z, n_clusters=[n_clusters])
     labels = labels[:,0]
-    if isinstance(cmap, str):
-        pal = sns.color_palette(cmap, n_clusters).as_hex()
+    if weights is not None:
+        cluster_piecharts_plot(emb, labels, weights, colors=feature_colors, ax=ax, stretch=stretch, fs=fs, **kwargs)
     else:
-        pal = cmap
-
-    colors = np.zeros(len(emb), dtype='U7')
-    for cl_l in np.arange(n_clusters):
-        mask = labels == cl_l
-        colors[mask] = pal[cl_l]
-
-    cluster_results_plot(emb, colors, ax=ax, stretch=stretch, **kwargs)
+        cluster_plot(emb, labels, colors=feature_colors, ax=ax, stretch=stretch, fs=fs, **kwargs)
 
 
 def get_real_noc(tested_noc, foc, smooth=True, use_median=False, spread_asm=True, spread_foc=True):

@@ -54,6 +54,8 @@ class TrackTBIFile(object):
     __oc_emb = 'outcome_emb'
     __bm_col = 'biomarker_colors'
     __oc_col = 'outcome_colors'
+    __bm_lbl = 'biomarker_labels'
+    __oc_lbl = 'outcome_labels'
 
     @classmethod
     def bases(cls, d):
@@ -88,6 +90,8 @@ class TrackTBIFile(object):
                 self.outcome_emb = self.__check_dset(sg, self.__oc_emb)
                 self.biomarker_colors = self.__check_dset(sg, self.__bm_col, string=True)
                 self.outcome_colors = self.__check_dset(sg, self.__oc_col, string=True)
+                self.biomarker_labels = self.__check_dset(sg, self.__bm_lbl, string=True)
+                self.outcome_labels = self.__check_dset(sg, self.__oc_lbl, string=True)
 
         if self.biomarker_features is not None:
             idx = np.where(self.biomarker_features == 'GCSMildModSevereRecode')[0][0]
@@ -137,7 +141,8 @@ class TrackTBIFile(object):
         return ret
 
     def __decode(self, dset):
-        if h5py.check_dtype(vlen=dset.dtype) == bytes:
+        # if h5py.check_dtype(vlen=dset.dtype) == bytes:
+        if h5py.check_dtype(vlen=dset.dtype) == str:
             return np.array([s.decode('utf-8') for s in dset])
         else:
             return dset[:]
@@ -172,7 +177,7 @@ class TrackTBIFile(object):
         dset.dims[dim].attach_scale(scale)
 
     @classmethod
-    def write_viz(cls, h5group, bm_emb=None, oc_emb=None, bm_colors=None, oc_colors=None, overwrite=False):
+    def write_viz(cls, h5group, bm_emb=None, oc_emb=None, bm_colors=None, oc_colors=None, bm_labels=None, oc_labels=None, overwrite=False):
         if bm_emb is oc_emb is bm_colors is oc_colors is None:
             return
         g = h5group.require_group(cls.__viz)
@@ -184,6 +189,10 @@ class TrackTBIFile(object):
             cls.__write_dset(g, cls.__bm_col, bm_colors, overwrite=overwrite)
         if oc_colors is not None:
             cls.__write_dset(g, cls.__oc_col, oc_colors, overwrite=overwrite)
+        if bm_labels is not None:
+            cls.__write_str(g, cls.__bm_lbl, bm_labels, overwrite=overwrite)
+        if oc_labels is not None:
+            cls.__write_str(g, cls.__oc_lbl, oc_labels, overwrite=overwrite)
 
     @classmethod
     def write_nmf(cls, h5group, bm, oc, bm_bases, oc_bases, **kwargs):

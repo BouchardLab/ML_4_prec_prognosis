@@ -38,23 +38,43 @@ def get_nmf_labels():
     Return:
         (biomarker_bases_labels, outcome_bases_labels)
     """
+    # oc_bases_labels = np.array([
+    #     'Insomnia',
+    #     'Dysphoria and\ndepression', # Depression
+    #     'LT cognitive\nimpairment', # long-term cognitive deficits
+    #     'ST cognitive\nimpairment', # short-term cognitive deficits
+    #     'Dizziness and\nheadache',
+    #     'Verbal working\nmemory',    # verbal learning
+    #     'Good outcome',     # Recovered
+    #     'Positive PTSD' # PTSD
+    # ])
+    
     oc_bases_labels = np.array([
-        'Insomnia',
-        'Dysphoria and\ndepression', # Depression
-        'LT cognitive\nimpairment', # long-term cognitive deficits
-        'ST cognitive\nimpairment', # short-term cognitive deficits
+        'Sleep disturbance', 
+        'Dysphoria and\ndepression',
+        '6-month NBI',
+        '3-month NBI', 
         'Dizziness and\nheadache',
-        'Verbal working\nmemory',    # verbal learning
-        'Good outcome',     # Recovered
-        'Positive PTSD' # PTSD
+        'Episodic memory', 
+        'Good outcome', 
+        'Positive PTSD'
     ])
+    
+    # bm_bases_labels = np.array([
+    #     'SES-related',    # mild/discharged
+    #     'PE age-related',             # pre-existing health conditions and age
+    #     'PE substance-related',    # pre-existing psych
+    #     'Severe TBI',        # severe injury
+    #     'Mild TBI'
+    # ])
     bm_bases_labels = np.array([
-        'SES-related',    # mild/discharged
-        'PE age-related',             # pre-existing health conditions and age
-        'PE substance-related',    # pre-existing psych
-        'Severe TBI',        # severe injury
-        'Mild TBI'
+        'Socioeconomic\nPEMC', 
+        'Age-related\nPEMC', 
+        'Psychiatric\nPEMC',
+        'High-severity\nTBI',
+        'Low-severity\nTBI'
     ])
+    
     return bm_bases_labels, oc_bases_labels
 
 
@@ -302,9 +322,38 @@ def venn5_count(data):
 
 
 def venn5_text_locs():
-    text_locs = np.array([[-13,-3,8,9,-4,-7.5,7.5,-9,-8,4,6.5,-2,9,-4,1.4,4,-7.5,-3.5,7.5,-6,-6.5,6,1.5,4,-0.5,4.5,0,-5,-3.5,3.5,0],
-                      [1,12,8,-8,-12,6.5,4.5,1,-4,8.5,-6,8.5,-1.5,-8,-9,5,3.5,6,1.5,-6,-1.5,-2,8,-7,-6.5,2,5.5,2,-3.5,-4,0]]).T
-    text_locs[:, 0] -= 1
+    text_locs = np.array([[-13. ,   1. ],    # 1
+                          [ -3. ,  12. ],    # 2
+                          [  8. ,   8. ],    # 3
+                          [  9. ,  -8. ],    # 4
+                          [ -4. , -12. ],    # 5
+                          [ -7.0,   6.0],    # 6
+                          [  7.5,   4.0],    # 7
+                          [ -9. ,   0.5],    # 8
+                          [ -8.5,  -5. ],    # 9
+                          [  4. ,   8.5],    # 10
+                          [  6.5,  -6. ],    # 11
+                          [ -2. ,   8.5],    # 12
+                          [  9. ,  -1.5],    # 13
+                          [ -4. ,  -8.5],    # 14
+                          [  1.4,  -9. ],    # 15
+                          [  4. ,   5. ],    # 16
+                          [ -7.5,   3.0],    # 17
+                          [ -3.8,   5.2],    # 18
+                          [  8.0,   1.0],    # 19
+                          [ -6. ,  -6. ],    # 20
+                          [ -6.5,  -2.0],    # 21
+                          [  6. ,  -3. ],    # 22
+                          [  1.0,   7.5],    # 23
+                          [  3.5,  -7.5],    # 24
+                          [ -0.5,  -7.0],    # 25
+                          [  4.5,   1.5],    # 26
+                          [  0. ,   4.5],    # 27
+                          [ -5. ,   1.5],    # 28
+                          [ -3.5,  -4.5],    # 29
+                          [  2.5,  -5. ],    # 30
+                          [  0. ,   0. ]])   # 31
+    text_locs[:, 0] -= 0.5
     return text_locs
 
 

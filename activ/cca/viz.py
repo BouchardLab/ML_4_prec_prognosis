@@ -7,11 +7,6 @@ from sklearn.linear_model import LinearRegression
 
 from ..viz import get_labels
 
-from sklearn.model_selection import cross_val_predict
-from sklearn.metrics import r2_score
-from sklearn.linear_model import LinearRegression
-from activ.viz import get_labels
-
 
 def _check_array(v):
     if isinstance(v, pd.Series):
@@ -122,5 +117,5 @@ def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitlin
 
         ax.plot(xfit, yfit, color='black')
         x_pos, y_pos = (0.5, 0.1)
-        ax.text(x_pos, y_pos, "$R^2$ = %0.4f" % cv_r2, size=fontsize, transform=ax.transAxes)
+        ax.text(x_pos, y_pos, "$R^2$ = %0.2f" % cv_r2, size=fontsize, transform=ax.transAxes)
     return ax

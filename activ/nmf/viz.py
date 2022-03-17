@@ -458,7 +458,7 @@ def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmaps='Reds'):
         ax.axis('off')
 
 
-def plot_umap_nmf_weight_kde(emb, weights, bases_labels, colors, cbar=True, alpha=1.0, ax=None, scatter=False, scatter_kw=None):
+def plot_umap_nmf_weight_kde(emb, weights, colors, bases_labels=None, cbar=True, alpha=1.0, ax=None, scatter=False, scatter_kw=None):
     """
     Plot smoothed 2D histogram of weights across UMAP embeddings.
     """
@@ -491,12 +491,18 @@ def plot_umap_nmf_weight_kde(emb, weights, bases_labels, colors, cbar=True, alph
 
     fig = ax[0].figure
 
-    for axes, vec, label, color in zip(ax, weights.T, bases_labels, colors):
+    alphas = weights.sum(axis=0)
+    alphas /= alphas.sum()
+
+    for axes, vec, color, sub_alpha in zip(ax, weights.T, colors, alphas):
+        if alpha is not None:
+            sub_alpha = alpha
         kernel = st.gaussian_kde(values, bw_method='scott', weights=vec)
         f = np.reshape(kernel(positions).T, xx.shape)
+
         cmap = mpc.LinearSegmentedColormap.from_list('mycmap', [(1.0,1.0,1.0), color])
         levels = np.linspace(0, np.max(f)*1.1, 110)
-        cfset = axes.contourf(xx, yy, f, levels, cmap=cmap, alpha=alpha)
+        cfset = axes.contourf(xx, yy, f, levels, cmap=cmap, alpha=sub_alpha)
         if scatter:
             tmp = vec - vec.min()
             tmp = tmp / tmp.max()
@@ -504,12 +510,15 @@ def plot_umap_nmf_weight_kde(emb, weights, bases_labels, colors, cbar=True, alph
                 scatter_kw = dict()
             scatter_kw.pop('fc', None)
             scatter_kw.pop('alpha', None)
-            axes.scatter(x, y, fc=color, alpha=tmp, **scatter_kw)
+            axes.scatter(x, y, fc=color, alpha=tmp*sub_alpha, **scatter_kw)
         axes.set_xlim(xmin, xmax)
         axes.set_ylim(ymin, ymax)
         if add_cbar:
-            axes.set_title(label, fontsize='x-large')
             fig.colorbar(cfset, ax=axes)
+
+    if bases_labels is not None:
+        for axes, label in zip(ax, bases_labels):
+            axes.set_title(label, fontsize='x-large')
 
     for axes in ax[weights.shape[1]:]:
         axes.axis('off')
