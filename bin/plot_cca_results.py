@@ -1,5 +1,5 @@
 from activ import TrackTBIFile
-from activ.cca import cross_decomp_scatter
+from activ.cca.viz import cross_decomp_scatter
 import argparse
 import pandas as pd
 import numpy as np
@@ -179,8 +179,8 @@ def plot(tbifile, feat_type=None, outdir=None, format='pdf',):
 
     bm_cv = tbifile.cca.bm
     oc_cv = tbifile.cca.oc
-    bm_ld = tbifile.cca.bm_bases
-    oc_ld = tbifile.cca.oc_bases
+    bm_ld = tbifile.cca.bm_bases.T
+    oc_ld = tbifile.cca.oc_bases.T
 
     for i in range(bm_cv.shape[1]):
         x_dweight = get_domain_weight(predictor_df, datadict_df, bm_ld[i], scale=scale)

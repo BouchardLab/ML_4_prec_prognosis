@@ -1,14 +1,14 @@
 import argparse
 import json
+
 from activ import TrackTBIFile
 from activ.cca.alscca import TALSCCA
 from activ.utils import get_logger, check_seed
-
+import numpy as np
+from scipy.stats import pearsonr
 from sklearn.model_selection import ParameterGrid, StratifiedKFold
 from sklearn.utils import check_random_state
 from sklearn.preprocessing import scale
-
-from scipy.stats import pearsonr
 
 import warnings
 
@@ -40,8 +40,8 @@ parser.add_argument('input', type=str, help='input TrackTBIFile')
 parser.add_argument('-s', '--seed', type=check_seed, help='the seed to use for running the pipeline', default='')
 parser.add_argument('-c', '--n_components', type=int, help='the number of canonical variates to compute', default=6)
 parser.add_argument('-i', '--max_iters', type=int, help='the maximum number of iterators to use', default=1000)
-parser.add_argument('-B', '--bm_alpha', type=int, help='regularization to use when regressing outcomes onto biomarkers', default=0.1)
-parser.add_argument('-O', '--oc_alpha', type=int, help='regularization to use when regressing biomarkers onto outcomes', default=0.1)
+parser.add_argument('-B', '--bm_alpha', type=str, help='regularization to use when regressing outcomes onto biomarkers', default=0.1)
+parser.add_argument('-O', '--oc_alpha', type=str, help='regularization to use when regressing biomarkers onto outcomes', default=0.1)
 
 grp = parser.add_mutually_exclusive_group()
 grp.add_argument('--cv', action='store_true', default=False, help='run CV to determine best alpha parameters')
@@ -73,7 +73,7 @@ elif args.cv:
 logger.info('running TALS-CCA')
 cca = TALSCCA(**tals_args, random_state=args.seed)
 bm_cv, oc_cv = cca.fit_transform(tbifile.biomarkers, tbifile.outcomes)
-bm_ld, oc_ld = cca.X_components_, cca.Y_components_
+bm_ld, oc_ld = cca.X_loadings_, cca.Y_loadings_
 
 metadata = {'cca_params': str(TALSCCA)}
 
