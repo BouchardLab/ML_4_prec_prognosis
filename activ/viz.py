@@ -48,18 +48,18 @@ def get_nmf_labels():
     #     'Good outcome',     # Recovered
     #     'Positive PTSD' # PTSD
     # ])
-    
+
     oc_bases_labels = np.array([
-        'Sleep disturbance', 
+        'Sleep disturbance',
         'Dysphoria and\ndepression',
         '6-month NBI',
-        '3-month NBI', 
+        '3-month NBI',
         'Dizziness and\nheadache',
-        'Episodic memory', 
-        'Good outcome', 
+        'Episodic memory',
+        'Good outcome',
         'Positive PTSD'
     ])
-    
+
     # bm_bases_labels = np.array([
     #     'SES-related',    # mild/discharged
     #     'PE age-related',             # pre-existing health conditions and age
@@ -68,13 +68,13 @@ def get_nmf_labels():
     #     'Mild TBI'
     # ])
     bm_bases_labels = np.array([
-        'Socioeconomic\nPEMC', 
-        'Age-related\nPEMC', 
+        'Socioeconomic\nPEMC',
+        'Age-related\nPEMC',
         'Psychiatric\nPEMC',
         'High-severity\nTBI',
         'Low-severity\nTBI'
     ])
-    
+
     return bm_bases_labels, oc_bases_labels
 
 
@@ -324,37 +324,38 @@ def venn5_count(data):
 def venn5_text_locs():
     text_locs = np.array([[-13. ,   1. ],    # 1
                           [ -3. ,  12. ],    # 2
-                          [  8. ,   8. ],    # 3
+                          [  9.5,   6. ],    # 3
                           [  9. ,  -8. ],    # 4
                           [ -4. , -12. ],    # 5
-                          [ -7.0,   6.0],    # 6
-                          [  7.5,   4.0],    # 7
-                          [ -9. ,   0.5],    # 8
-                          [ -8.5,  -5. ],    # 9
-                          [  4. ,   8.5],    # 10
-                          [  6.5,  -6. ],    # 11
-                          [ -2. ,   8.5],    # 12
+                          [ -7.6,   6.0],    # 6
+                          [  7.0,   4.0],    # 7
+                          [ -9.5,   0.3],    # 8
+                          [ -9.0,  -5.2],    # 9
+                          [  3.5 ,  8.0],    # 10
+                          [  6.0,  -6. ],    # 11
+                          [ -2.7,   8.0],    # 12
                           [  9. ,  -1.5],    # 13
                           [ -4. ,  -8.5],    # 14
-                          [  1.4,  -9. ],    # 15
-                          [  4. ,   5. ],    # 16
-                          [ -7.5,   3.0],    # 17
-                          [ -3.8,   5.2],    # 18
-                          [  8.0,   1.0],    # 19
-                          [ -6. ,  -6. ],    # 20
-                          [ -6.5,  -2.0],    # 21
-                          [  6. ,  -3. ],    # 22
-                          [  1.0,   7.5],    # 23
-                          [  3.5,  -7.5],    # 24
-                          [ -0.5,  -7.0],    # 25
-                          [  4.5,   1.5],    # 26
-                          [  0. ,   4.5],    # 27
-                          [ -5. ,   1.5],    # 28
-                          [ -3.5,  -4.5],    # 29
+                          [  1.4,  -10.],    # 15
+                          [  3.5 ,  4.5],    # 16
+                          [ -8.0,   3.3],    # 17
+                          [ -4.2,   5.0],    # 18
+                          [  7.5,   0.8],    # 19
+                          [ -6.3,  -6.3],    # 20
+                          [ -7.0,  -2.1],    # 21
+                          [  5.5,  -3. ],    # 22
+                          [  0.5,   7.3],    # 23
+                          [  3.0,  -7.8],    # 24
+                          [ -1.0,  -7.2],    # 25
+                          [  4.2,   0.9],    # 26
+                          [ -0.5,   4.5],    # 27
+                          [ -5.5,   1.0],    # 28
+                          [ -4.5,  -4.5],    # 29
                           [  2.5,  -5. ],    # 30
-                          [  0. ,   0. ]])   # 31
+                          [ -1.0 , -0.5]])   # 31
     text_locs[:, 0] -= 0.5
     return text_locs
+
 
 
 def venn5_label_locs():
@@ -366,9 +367,9 @@ def venn5_label_locs():
     label_locs = np.array(
              [[-18.5  ,   5. ],
               [ -5.  ,  14.2],
-              [ 10.5 ,  9.5 ],
-              [  6.  , -18.5 ],
-              [-10.  , -18 ]])
+              [ 10.5 ,  8.0 ],
+              [  6.  , -19.5 ],
+              [-10.  , -19.2 ]])
     return label_locs
 
 

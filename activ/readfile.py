@@ -142,7 +142,7 @@ class TrackTBIFile(object):
 
     def __decode(self, dset):
         # if h5py.check_dtype(vlen=dset.dtype) == bytes:
-        if h5py.check_dtype(vlen=dset.dtype) == str:
+        if h5py.check_dtype(vlen=dset.dtype) in (bytes, str):
             return np.array([s.decode('utf-8') for s in dset])
         else:
             return dset[:]

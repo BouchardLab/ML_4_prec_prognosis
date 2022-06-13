@@ -331,7 +331,6 @@ def plot_weights(weights, colors=None, factor_order=None, ax=None, labels=None, 
     ax.set_ylabel('Average Percent of Total Weight', fontsize=fontsize)
     return factor_order
 
-
 def nmfplot(weights, bases, palette=None, features=None, axes=None, bases_labels=None,
             bases_order=True, legend=False, fontsize=None, heatmap_xlabel=None, labelsize=None):
     """
@@ -354,6 +353,47 @@ def nmfplot(weights, bases, palette=None, features=None, axes=None, bases_labels
         axes[0].set_xlabel(heatmap_xlabel, fontsize=fontsize)
     if bases_labels is not None and legend:
         axes[1].legend([mpatches.Patch(color=c) for c in palette], bases_labels, bbox_to_anchor=(1.0, 1.0), loc='upper left')
+    return factor_order
+
+
+def nmf_weights_plot(weights, bases, palette=None, features=None, axes=None, bases_labels=None,
+                     bases_order=True, legend=False, fontsize=None, heatmap_xlabel=None, labelsize=None):
+    """
+    Generate a side-by-side figure of a bases heatmap and a weights barplot
+    """
+    if axes is None:
+        fig, axes = plt.subplots(1, 2)
+    if palette is None:
+        palette = sns.color_palette('Set2', bases.shape[0])
+    labelsize = labelsize or fontsize
+    if bases_order:
+        factor_order, var_grps = plot_bases(bases, palette, feat_names=features or False,
+                                            ax=axes[0], bases_labels=bases_labels, fontsize=labelsize)
+        axes[0].set_xlabel(heatmap_xlabel, fontsize=fontsize)
+        plot_weights(weights, palette, factor_order=factor_order, ax=axes[1:], labels=bases_labels, fontsize=fontsize, labelsize=labelsize)
+    else:
+        factor_order = plot_weights(weights, palette, ax=axes[1:], labels=bases_labels, fontsize=fontsize, labelsize=labelsize)
+        factor_order, var_grps = plot_bases(bases, palette, factor_order=factor_order, fontsize=labelsize,
+                                            feat_names=features or False, ax=axes[0], bases_labels=bases_labels)
+        axes[0].set_xlabel(heatmap_xlabel, fontsize=fontsize)
+    if bases_labels is not None and legend:
+        axes[1].legend([mpatches.Patch(color=c) for c in palette], bases_labels, bbox_to_anchor=(1.0, 1.0), loc='upper left')
+    return factor_order
+
+
+def nmf_bases_plot(bases, palette=None, features=None, ax=None, bases_labels=None, factor_order=None,
+                   legend=False, fontsize=None, heatmap_xlabel=None, labelsize=None):
+    """
+    Generate a side-by-side figure of a bases heatmap and a weights barplot
+    """
+    if ax is None:
+        ax = plt.gca()
+    if palette is None:
+        palette = sns.color_palette('Set2', bases.shape[0])
+    labelsize = labelsize or fontsize
+    factor_order, var_grps = plot_bases(bases, palette, feat_names=features or False, factor_order=factor_order,
+                                        ax=ax, bases_labels=bases_labels, fontsize=labelsize)
+    ax.set_xlabel(heatmap_xlabel, fontsize=fontsize)
     return factor_order
 
 
