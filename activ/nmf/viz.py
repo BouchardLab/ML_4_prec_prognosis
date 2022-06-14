@@ -233,7 +233,7 @@ def get_percent_top(features, bases, perc=0.80, return_perc=False):
 
 
 def plot_bases(bases, colors, feat_names=None, return_groups=True, ax=None,
-               bases_labels=None, factor_order=None, fontsize=None, xlabel=None):
+               bases_labels=None, factor_order=None, fontsize=None, xlabel=None, cbarlabel=''):
     """
     A wrapper for *bases_heatmap*
     """
@@ -242,7 +242,7 @@ def plot_bases(bases, colors, feat_names=None, return_groups=True, ax=None,
                         highlight_weight=0.50,
                         highlight=colors,
                         show_cbar=True,
-                        # cbarlabel='Feature contribution',
+                        cbarlabel=cbarlabel,
                         return_groups=return_groups,
                         row_labels=bases_labels,
                         xlabel=xlabel,
@@ -498,7 +498,7 @@ def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmaps='Reds'):
         ax.axis('off')
 
 
-def plot_umap_nmf_weight_kde(emb, weights, colors, bases_labels=None, cbar=True, alpha=1.0, ax=None, scatter=False, scatter_kw=None):
+def plot_umap_nmf_weight_kde(emb, weights, colors, bases_labels=None, cbar=True, alpha=1.0, ax=None, scatter=False, scatter_kw=None, titlesize='x-large'):
     """
     Plot smoothed 2D histogram of weights across UMAP embeddings.
     """
@@ -558,7 +558,7 @@ def plot_umap_nmf_weight_kde(emb, weights, colors, bases_labels=None, cbar=True,
 
     if bases_labels is not None:
         for axes, label in zip(ax, bases_labels):
-            axes.set_title(label, fontsize='x-large')
+            axes.set_title(label, fontsize=titlesize)
 
     for axes in ax[weights.shape[1]:]:
         axes.axis('off')
