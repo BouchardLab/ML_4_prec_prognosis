@@ -430,8 +430,8 @@ def plot_umap_nmf_piechart(weights, umap_emb, s=100, ax=None, fontsize=None, pal
     """
     weights_pie_scatter(weights, umap_emb, s=s, ax=ax, palette=palette)
     ax.tick_params(labelsize=fontsize)
-    ax.set_xlabel('UMAP dimesion 1', fontsize=fontsize)
-    ax.set_ylabel('UMAP dimesion 2', fontsize=fontsize)
+    ax.set_xlabel('UMAP dimension 1', fontsize=fontsize)
+    ax.set_ylabel('UMAP dimension 2', fontsize=fontsize)
 
 
 def plot_umap_nmf_max(emb, weights, bases_labels, right=False, min_dist=0.0, legend=True, ax=None, palette=None):

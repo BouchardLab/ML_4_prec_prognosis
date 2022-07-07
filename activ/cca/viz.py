@@ -116,6 +116,6 @@ def cross_decomp_scatter(x, y, regressor=LinearRegression(), labels=None, fitlin
         yfit = regressor.predict(xfit)
 
         ax.plot(xfit, yfit, color='black')
-        x_pos, y_pos = (0.5, 0.1)
+        x_pos, y_pos = (0.7, 0.1)
         ax.text(x_pos, y_pos, "$R^2$ = %0.2f" % cv_r2, size=fontsize, transform=ax.transAxes)
     return ax

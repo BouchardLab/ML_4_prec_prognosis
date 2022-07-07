@@ -138,7 +138,7 @@ def shade_around(data, ax=None, stretch=None, alpha=0.2, color='blue', convex=Tr
         # zi = interpolator(Xi, Yi)
         # cfset = ax.contourf(xi, yi, zi, colors=color, alpha=alpha)
 
-        cfset = ax.tricontourf(x, y, z, colors=color, alpha=alpha)
+        cfset = ax.tricontourf(x, y, z, colors=color, alpha=alpha, zorder=0)
     else:
         ch = concave_hull(data, 16)
         gpd.GeoSeries([ch]).plot(ax=ax, alpha=alpha, color=color, edgecolor='none')
@@ -459,7 +459,7 @@ def plot_max1d_simdata_results(path, ax=None, flip=False, fontsize='x-large'):
     sim_sweep_plot(est_noc_max1d, true_noc, ax=ax, flip=flip, fontsize=fontsize)
 
 
-def make_clustered_plot(emb, n_clusters, feature_colors, weights=None, ax=None, stretch=None, fs='x-large', **kwargs):
+def make_clustered_plot(emb, n_clusters, feature_colors, weights=None, ax=None, stretch=None, fs='x-large', add_labels=False, highlight=0, **kwargs):
     """
     Plot 2-D UMAP embedding. Cluster embedding and shade around the
     resulting clusters. Pass in weights to plot points as pie charts
@@ -474,6 +474,28 @@ def make_clustered_plot(emb, n_clusters, feature_colors, weights=None, ax=None, 
     else:
         cluster_plot(emb, labels, colors=feature_colors, ax=ax, stretch=stretch, fs=fs, **kwargs)
 
+    if add_labels:
+        for label in np.unique(labels):
+            mask = labels == label
+            center = np.mean(emb[mask], axis=0)
+            ax.text(center[0], center[1], str(label), fontsize=fs)
+    elif highlight > 0:
+        if weights is None:
+            raise ValueError("to highlight clusters, please provide weights for determining homogeneity")
+        print(np.unique(labels, return_counts=True))
+        label_var = np.zeros(max(labels) + 1)
+        for label in np.unique(labels):
+            mask = labels == label
+            label_var[label] = np.var(weights[mask], axis=0).sum()
+        print('label_var before', label_var)
+        label_var = np.argsort(label_var)[:highlight]
+        print('label_var after', label_var)
+        for label in label_var:
+            mask = labels == label
+            print(mask.sum())
+            shade_around(emb[mask], ax=ax, color='lightgrey', convex=True)
+
+    return labels
 
 def get_real_noc(tested_noc, foc, smooth=True, use_median=False, spread_asm=True, spread_foc=True):
     ret = dict()
@@ -587,7 +609,7 @@ def plot_real_foc_results(path, ax=None, max1d_cutoff=False, ci=None, n_sigma=1,
 
     ax.set_ylabel(ylabel, fontsize=fontsize)
     ax.set_xlabel("# Outcome clusters", fontsize=fontsize)
-    return est
+    return est, med
 
 
 def plot_real_accuracy_chance_results(path, ax=None, fontsize='x-large', ylabel="Prediction Accuracy"):
@@ -600,16 +622,16 @@ def plot_real_accuracy_chance_results(path, ax=None, fontsize='x-large', ylabel=
 
 
     x_noc, lower, med, upper = flatten_summarize(np.arange(2, 51),
-                                                 real_chance, smooth=False,
-                                                 iqr=True)
-
-    plot_line(x_noc, med, lower=lower, upper=upper, ax=ax, color='gray')
-
-    x_noc, lower, med, upper = flatten_summarize(np.arange(2, 51),
                                                  real_accuracy, smooth=False,
                                                  iqr=True)
+    plot_line(x_noc, med, lower=lower, upper=upper, ax=ax, color='black', label='Accuracy')
+    raw = med
 
-    plot_line(x_noc, med, lower=lower, upper=upper, ax=ax, color='black')
+    x_noc, lower, med, upper = flatten_summarize(np.arange(2, 51),
+                                                 real_chance, smooth=False,
+                                                 iqr=True)
+    plot_line(x_noc, med, lower=lower, upper=upper, ax=ax, color='gray', label='Chance accuracy')
+    chance = med
 
     yticks = np.array([2, 4, 6, 8, 10], dtype=np.int)
     ax.set_yticks(yticks/10)
@@ -620,6 +642,7 @@ def plot_real_accuracy_chance_results(path, ax=None, fontsize='x-large', ylabel=
 
     ax.set_ylabel(ylabel, fontsize=fontsize)
     ax.set_xlabel("# Outcome clusters", fontsize=fontsize)
+    return raw, chance
 
 
 def entropy_across_clusterings(variable, labels):

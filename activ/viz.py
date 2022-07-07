@@ -15,6 +15,10 @@ from sklearn.linear_model import LinearRegression
 from .analytics import cv_r2_score, linefit, _check_X_y
 
 
+def remove_ticks(ax):
+    ax.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+    ax.tick_params(axis='y', which='both', left=False, right=False, labelleft=False)
+
 
 def get_nmf_colors():
     """
