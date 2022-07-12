@@ -55,9 +55,9 @@ def compute_explained_variance(X_cv, Y_cv, Y, perc_var=0.875, method='r2', tol=0
         the number of components that the explained variance was caluclated for
 
     """
-    if method == 'cos':
+    if method == 'r2':
         sim = lambda x, y: compute_r2(x, y)
-    elif method == 'r2':
+    elif method == 'cos':
         sim = lambda x, y: compute_cos(x, y)**2
     else:
         raise ValueError("method must be 'r2' or 'cos'")
