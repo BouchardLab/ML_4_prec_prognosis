@@ -6,6 +6,10 @@ from sklearn.cross_decomposition import CCA
 import numpy as np
 import numpy.linalg as LA
 from sklearn.linear_model import enet_path
+from tqdm import tqdm
+
+import sys
+from time import time
 
 
 def inprod(u, M, v=None):
@@ -45,7 +49,7 @@ def cdsolve(X, Y, init, reg, random_state, l1_ratio=1.0, max_iter=1000, tol=0.1,
             enet_path(X, Y, coef_init=init.T, alphas=[reg],
                       random_state=random_state, max_iter=max_iter,
                       selection=selection, precompute='auto',
-                      check_input=True, return_n_iters=False,
+                      check_input=True,#return_n_iters=False,
                       tol=tol,
                       l1_ratio=l1_ratio, eps=None, n_alphas=None)
         ret = ret.squeeze().T
@@ -58,7 +62,7 @@ def cdsolve(X, Y, init, reg, random_state, l1_ratio=1.0, max_iter=1000, tol=0.1,
 def tals_cca(X, Y, k, max_iter=1000, tol=0.0001, random_state=None,
              alpha_x=0.001, alpha_y=0.001,
              l1_ratio_x=1.0, l1_ratio_y=1.0,
-             return_cov=False, return_delta=False):
+             return_cov=False, return_delta=False, verbose=False):
     random_state = check_random_state(random_state)
     n = len(X)
     p = X.shape[1]
@@ -76,10 +80,14 @@ def tals_cca(X, Y, k, max_iter=1000, tol=0.0001, random_state=None,
 
     n_iters = 0
     deltas = list()
-    for _ in range(max_iter):
+    it = range(max_iter)
+    #if verbose:
+    #    it = tqdm(it, total=max_iter)
+    for _ in it:
+        start = time()
         H_init = H_t1.dot(LA.inv(inprod(H_t1.T, Cxx)).dot(inprod(H_t1.T, Cxy, S_t1.T)))
         # solve for H_t, initialized at H_init, use S_t1
-        H_t = cdsolve(X, Y.dot(S_t1), H_init, alpha_x/2, random_state, l1_ratio=l1_ratio_x)
+        H_t = cdsolve(X, Y.dot(S_t1), H_init, alpha_x/2, random_state, l1_ratio=l1_ratio_x, max_iter=500)
         if H_t.ndim == 1:
             H_t = H_t.reshape(-1, 1)
         H_t = gs(H_t, Cxx)
@@ -92,6 +100,8 @@ def tals_cca(X, Y, k, max_iter=1000, tol=0.0001, random_state=None,
         n_iters += 1
         delta = np.abs(np.concatenate([(H_t - H_t1), (S_t - S_t1)])).mean()
         deltas.append(delta)
+        if verbose:
+            print(f"{time() - start:.3f}", file=sys.stderr)
         if delta < tol:
             break
         H_t1 = H_t
@@ -183,7 +193,8 @@ class TALSCCA(BaseEstimator):
     """
     def __init__(self, random_state=None, scale=False,
                  n_components=1, max_iter=100, alpha_x=0.001,
-                 alpha_y=0.001, l1_ratio_x=1.0, l1_ratio_y=1.0, tol=0.001):
+                 alpha_y=0.001, l1_ratio_x=1.0, l1_ratio_y=1.0, tol=0.001,
+                 verbose=False):
 
         self.random_state = check_random_state(random_state)
         self.n_components = n_components
@@ -198,6 +209,7 @@ class TALSCCA(BaseEstimator):
         if scale:
             self.x_scale_ = StandardScaler()
             self.y_scale_ = StandardScaler()
+        self.verbose = verbose
 
     def fit(self, X, Y):
         if self.x_scale_ is not None:
@@ -206,7 +218,7 @@ class TALSCCA(BaseEstimator):
         ret = tals_cca(X, Y, self.n_components, max_iter=self.max_iter, tol=self.tol,
                        alpha_x=self.alpha_x, alpha_y=self.alpha_y, return_cov=True,
                        l1_ratio_x=self.l1_ratio_x, l1_ratio_y=self.l1_ratio_y,
-                       random_state=self.random_state, return_delta=True)
+                       random_state=self.random_state, return_delta=True, verbose=self.verbose)
 
         H, S, self.n_iter_ = ret[0], ret[1], ret[2]
         self.x_weights_, self.y_weights_ = H, S

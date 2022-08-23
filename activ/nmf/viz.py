@@ -254,7 +254,7 @@ def plot_bases(bases, colors, feat_names=None, return_groups=True, ax=None,
     return ret[1]
 
 
-def plot_weights(weights, colors=None, factor_order=None, ax=None, labels=None, fontsize=None, labelsize=None):
+def plot_weights(weights, colors=None, factor_order=None, ax=None, labels=None, fontsize=None, labelsize=None, linespacing=1):
     """
     Plot weights as a barplot.
 
@@ -322,7 +322,9 @@ def plot_weights(weights, colors=None, factor_order=None, ax=None, labels=None, 
         labels = factor_order
     else:
         labels = [labels[i] for i in factor_order]
-    ax.set_xticklabels(labels, rotation=45, rotation_mode='anchor', horizontalalignment='right', fontsize=labelsize)
+    ax.set_xticklabels(labels, rotation=45, rotation_mode='anchor',
+                               horizontalalignment='right', fontsize=labelsize,
+                               linespacing=linespacing)
     yticks = np.array([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
     ax.set_yticks(yticks)
     ax.set_yticklabels((yticks * 100).astype(int), fontsize=labelsize)
@@ -478,7 +480,7 @@ def get_point_colors(cmap, vec):
     return colors, mappable
 
 
-def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmaps='Reds'):
+def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmaps='Reds', cbar=True):
     """
     Plot 2-D UMAP embedding, one for each weight, coloring points according
     to the value of the weight
@@ -488,11 +490,12 @@ def plot_umap_nmf_weight(emb, weights, axes, bases_labels, cmaps='Reds'):
     for ax, vec, label, cmap in zip(axes, weights.T, bases_labels, cmaps):
         colors, mappable = get_point_colors(plt.get_cmap(cmap), vec)
         ax.scatter(emb[:, 0], emb[:, 1], c=colors)
-        cax = make_axes_locatable(ax).append_axes("right", size="7%", pad="2%")
-        plt.colorbar(mappable, cax=cax)
         ax.tick_params('both', labelsize='large')
-        cax.tick_params('both', labelsize='large')
         ax.set_title(label, fontsize='x-large')
+        if cbar:
+            cax = make_axes_locatable(ax).append_axes("right", size="7%", pad="2%")
+            plt.colorbar(mappable, cax=cax)
+            cax.tick_params('both', labelsize='large')
     #    ax.axis('scaled')
     for ax in axes[weights.shape[1]:]:
         ax.axis('off')
