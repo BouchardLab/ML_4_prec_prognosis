@@ -53,15 +53,26 @@ def get_nmf_labels():
     #     'Positive PTSD' # PTSD
     # ])
 
+    # oc_bases_labels = np.array([
+    #     'Sleep disturbance',
+    #     'Dysphoria and\ndepression',
+    #     '6-month NBI',
+    #     '3-month NBI',
+    #     'Dizziness and\nheadache',
+    #     'Episodic memory',
+    #     'Good outcome',
+    #     'Positive PTSD'
+    # ])
+
     oc_bases_labels = np.array([
         'Sleep disturbance',
-        'Dysphoria and\ndepression',
-        '6-month NBI',
+        'Emotional distress',
+        'Cognitive impairment',
         '3-month NBI',
-        'Dizziness and\nheadache',
-        'Episodic memory',
-        'Good outcome',
-        'Positive PTSD'
+        'Vestibulo-ocular',
+        'Conc. and\nep. memory',
+        'Func. rec.',
+        'Post-TBI stress',
     ])
 
     # bm_bases_labels = np.array([
@@ -71,12 +82,21 @@ def get_nmf_labels():
     #     'Severe TBI',        # severe injury
     #     'Mild TBI'
     # ])
+
+    # bm_bases_labels = np.array([
+    #     'Socioeconomic\nPEMC',
+    #     'Age-related\nPEMC',
+    #     'Psychiatric\nPEMC',
+    #     'High-severity\nTBI',
+    #     'Low-severity\nTBI'
+    # ])
+
     bm_bases_labels = np.array([
-        'Socioeconomic\nPEMC',
-        'Age-related\nPEMC',
-        'Psychiatric\nPEMC',
-        'High-severity\nTBI',
-        'Low-severity\nTBI'
+        'Sociomedical factors',
+        'PEMC',
+        'PEMHC',
+        'Intracranial injury',
+        'Deg. of\nconciousness',
     ])
 
     return bm_bases_labels, oc_bases_labels
