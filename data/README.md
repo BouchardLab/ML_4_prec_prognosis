@@ -18,4 +18,3 @@ The outputs of this script were reformatted to create an HDF5 file to simplify r
 
 ## Other files and subdirectories in this directory
 - `TRACKTBI_PILOT_FAKE.csv` - a comma-separated values file containing fake data in the same form as the original data. This was used for testing purposes
-- `ct` - this directory contains outputs from processing computed-tomography data collected as part of the TRACK-TBI pilot. 
