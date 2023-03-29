@@ -16,7 +16,7 @@ Below is an example of how to run this script on a Unix-like system with the R s
 
 ```bash
 $ cd $GIT_REPO_DIR/data
-$ R < subset_selection.R
+$ R --no-save < subset_selection.R
 ```
 
 The outputs of this script were reformatted to create an HDF5 file to simplify reading data into analysis code. This reformated file can be found at 
