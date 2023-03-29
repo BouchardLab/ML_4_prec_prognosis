@@ -5,7 +5,8 @@ This directory contains data from the TRACK-TBI pilot study.
 ## Data used for _Data-driven distillation and precision prognosis in traumatic brain injury with interpretable machine learning_
 
 Data used for the manuscript _Data-driven distillation and precision prognosis in traumatic brain injury with interpretable machine learning_ can by found
-in the `data` subdirectory of this directory at [`data/preprocessed_data_matrix.csv`](https://github.com/BouchardLab/ML_4_prec_prognosis/blob/master/data/data/preprocessed_data_matrix.csv). 
+in the [`data`](https://github.com/BouchardLab/ML_4_prec_prognosis/blob/master/data/data) subdirectory of this directory at 
+[`data/preprocessed_data_matrix.csv`](https://github.com/BouchardLab/ML_4_prec_prognosis/blob/master/data/data/preprocessed_data_matrix.csv). 
 The file [`data/mask_feature_outcome.txt`](https://github.com/BouchardLab/ML_4_prec_prognosis/blob/master/data/data/mask_feature_outcome.txt) contains a binary mask indicating
 which columns in the comma-separated values file were used as _clinical features_ (i.e. value `0`) and _outcome features_ (i.e. value `1`).
 
