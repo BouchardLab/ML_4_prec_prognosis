@@ -300,6 +300,13 @@ def plot_weights(weights, colors=None, factor_order=None, ax=None, labels=None, 
             ax_bar.spines['right'].set_visible(False)
             ax_bar.spines['top'].set_visible(False)
             ax_bar.set_ylabel('Fraction of\npatients', fontsize=fontsize)
+
+            yticks = np.array([100, 200])
+            ax_bar2 = ax_bar.twinx()
+            ax_bar2.set_yticks(yticks / weights.shape[0], labels=yticks, fontsize=labelsize)
+            ax_bar2.set_ylabel('Number of\npatients', fontsize=fontsize)
+            ax_bar2.spines['top'].set_visible(False)
+            ax_bar.spines['left'].set_visible(False)
             ax = ax[1]
         else:
             ax = ax[0]
