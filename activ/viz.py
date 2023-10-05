@@ -92,7 +92,7 @@ def get_nmf_labels():
     # ])
 
     bm_bases_labels = np.array([
-        'Sociomedical factors',
+        'Other sociomedical\nfactors',
         'PEMC',
         'PEMHC',
         'Intracranial injury',
