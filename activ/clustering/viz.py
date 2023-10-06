@@ -570,10 +570,6 @@ def plot_real_foc_results(path, ax=None, max1d_cutoff=False, ci=None, n_sigma=1,
     ax = ax or plt.gca()
     real_noc, real_foc, real_accuracy, real_chance = read_clustering_results(path)
 
-    real_data_est = get_real_noc(np.arange(2, 51), real_foc,
-                                 smooth=True, use_median=False,
-                                 spread_asm=True, spread_foc=True)
-
 
     x_noc, lower, med, upper = flatten_summarize(np.arange(2, 51),
                                                  real_foc, smooth=True,
@@ -585,7 +581,7 @@ def plot_real_foc_results(path, ax=None, max1d_cutoff=False, ci=None, n_sigma=1,
         noc_idx = get_noc_max1d_smooth(np.arange(2, 51), real_foc)
     else:
         noc_idx = get_noc(np.arange(2, 51), real_foc, plot_fit=True, plot_asm=False, fit_summary=True,
-                          ttest_cutoff=False, iqr=False, ax=ax, use_median=False, spread_asm=True, spread_foc=True,
+                          ttest_cutoff=False, iqr=True, ax=ax, use_median=False, spread_asm=True, spread_foc=True,
                           ci=ci, n_sigma=n_sigma)
 
     est = np.arange(2, 51)[noc_idx]

@@ -5,7 +5,6 @@ h5py
 matplotlib
 seaborn
 umap-learn
-hdbscan
 pandas
 latex
-git+https://github.com/ajtritt/concavity
+git+https://github.com/BouchardLab/concavity
