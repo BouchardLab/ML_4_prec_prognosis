@@ -570,10 +570,6 @@ def plot_real_foc_results(path, ax=None, max1d_cutoff=False, ci=None, n_sigma=1,
     ax = ax or plt.gca()
     real_noc, real_foc, real_accuracy, real_chance = read_clustering_results(path)
 
-    real_data_est = get_real_noc(np.arange(2, 51), real_foc,
-                                 smooth=True, use_median=False,
-                                 spread_asm=True, spread_foc=True)
-
 
     x_noc, lower, med, upper = flatten_summarize(np.arange(2, 51),
                                                  real_foc, smooth=True,
@@ -585,7 +581,7 @@ def plot_real_foc_results(path, ax=None, max1d_cutoff=False, ci=None, n_sigma=1,
         noc_idx = get_noc_max1d_smooth(np.arange(2, 51), real_foc)
     else:
         noc_idx = get_noc(np.arange(2, 51), real_foc, plot_fit=True, plot_asm=False, fit_summary=True,
-                          ttest_cutoff=False, iqr=False, ax=ax, use_median=False, spread_asm=True, spread_foc=True,
+                          ttest_cutoff=False, iqr=True, ax=ax, use_median=False, spread_asm=True, spread_foc=True,
                           ci=ci, n_sigma=n_sigma)
 
     est = np.arange(2, 51)[noc_idx]
@@ -668,7 +664,7 @@ def entropy_across_clusterings(variable, labels):
     return np.array(ret)
 
 
-def plot_entropy_across_clusters(features, emb, ax=None, cmap='Greys'):
+def plot_entropy_across_clusters(features, emb, ax=None, cmap='Greys', fontsize='x-large'):
     """
     Plot average feature entropy as a function of the number of clusters
     for every feature in *features*
@@ -698,20 +694,20 @@ def plot_entropy_across_clusters(features, emb, ax=None, cmap='Greys'):
     order = np.argsort(init)[::-1]
     for var_i in order:
         ax.plot(x, y[var_i]/init[var_i], c=cmap(init[var_i]))
-    ax.set_ylabel("Percent of initial entropy", fontsize='x-large')
-    ax.set_xlabel("Number of clusters", fontsize='x-large')
+    ax.set_ylabel("Percent of initial entropy", fontsize=fontsize)
+    ax.set_xlabel("Number of clusters", fontsize=fontsize)
 
     yticks = np.array([0.2, 0.4, 0.6, 0.8, 1.0])
 
     ax.set_yticks(yticks)
-    ax.set_yticklabels((yticks*100).astype(int), fontsize='x-large')
+    ax.set_yticklabels((yticks*100).astype(int), fontsize=fontsize)
 
     xticks = np.arange(6)*10
     ax.set_xticks(xticks)
-    ax.set_xticklabels(xticks, fontsize='x-large')
+    ax.set_xticklabels(xticks, fontsize=fontsize)
 
     cbar = ax.figure.colorbar(cm.ScalarMappable(norm=mpc.Normalize(vmin=np.min(init), vmax=np.max(init)), cmap=cmap), ax=ax)
-    cbar.set_label("Initial entropy", rotation=-90, va="bottom", fontsize='x-large')
+    cbar.set_label("Initial entropy", rotation=-90, va="bottom", fontsize=fontsize)
     cbar_yticks = [1, 2, 3, 4]
 
-    cbar.ax.set_yticklabels(cbar_yticks, fontsize='x-large')
+    cbar.ax.set_yticklabels(cbar_yticks, fontsize=fontsize)
